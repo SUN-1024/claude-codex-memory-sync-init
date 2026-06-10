@@ -4,28 +4,22 @@ Stable, slow-changing facts that any agent should know after reading this
 once. Add an entry when a discovery would have saved you time on the previous
 task. Remove entries that go stale.
 
+Keep entries to one sentence each. Do NOT put current progress, active runs,
+or task status here — those belong in `handoff.md`.
+
 ## Conventions
 
-- Coding conventions, naming patterns, or layout rules that are not obvious
-  from the code itself.
+- Patterns, naming rules, or layout decisions not obvious from the code.
 
 ## Constraints
 
-- Performance budgets, compatibility requirements, or compliance rules that
-  shape every change.
+- Hard requirements (compatibility, performance, compliance).
 
 ## Common pitfalls
 
-- Footguns the project has hit before. One sentence each, with the lesson and
-  enough context to recognize the situation again.
+- Footguns the project has hit before. One sentence each, with enough
+  context to recognize the situation again.
 
 ## External integrations
 
-- Stable details about third-party APIs, queues, or services this project
-  depends on (rate limits, quirks, undocumented behavior).
-
----
-
-This file fills up over time. Keep entries short. If something becomes
-project-defining, promote it to `project.md` or `architecture.md` instead of
-leaving it buried here.
+- Stable details about third-party services (rate limits, quirks, endpoints).

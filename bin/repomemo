@@ -38,9 +38,6 @@ TEMPLATE_DIR="$(dirname "$SCRIPT_DIR")/templates"
 SCAFFOLD_FILES=(
   ".ai/README.md"
   ".ai/project.md"
-  ".ai/architecture.md"
-  ".ai/definition-of-done.md"
-  ".ai/review-checklist.md"
   ".ai/memory.md"
   ".ai/handoff.md"
   "CLAUDE.md"
@@ -51,9 +48,6 @@ SCAFFOLD_FILES=(
 AI_FILES=(
   ".ai/README.md"
   ".ai/project.md"
-  ".ai/architecture.md"
-  ".ai/definition-of-done.md"
-  ".ai/review-checklist.md"
   ".ai/memory.md"
   ".ai/handoff.md"
 )

@@ -37,8 +37,7 @@ repomemo init      # writes .ai/, CLAUDE.md, AGENTS.md, opencode.md (skips files
 repomemo check     # validates the scaffold is complete and non-empty
 
 # 3. Make it yours
-#    edit .ai/project.md and .ai/architecture.md to describe the real project
-#    replace the "Required commands" section in .ai/definition-of-done.md
+#    edit .ai/project.md to describe the real project
 #    git add .ai CLAUDE.md AGENTS.md opencode.md && git commit -m "chore: adopt repomemo"
 ```
 
@@ -49,13 +48,10 @@ or `opencode.md` reads the same files in the same order at session start.
 
 ```
 .ai/
-  README.md              # convention + read order
-  project.md             # purpose, stakeholders, scope, non-goals
-  architecture.md        # stack, layout, components, decisions
-  definition-of-done.md  # what "done" means in this repo
-  review-checklist.md    # PR review rubric
+  README.md              # convention + read order + write rules
+  project.md             # what, layout, workflow, done criteria
   memory.md              # durable shared knowledge
-  handoff.md             # rolling state of the latest task
+  handoff.md             # current task, active runs, next action
 CLAUDE.md                # adapter for agents that resolve @./path imports
 AGENTS.md                # adapter for agents that read a numbered file list
 opencode.md              # adapter for agents that resolve @./path imports
@@ -176,9 +172,8 @@ and `.ai/handoff.md` have been customized (not left as template placeholders)
 and that every root adapter has the no-private-memory instruction — confirming
 the shared memory system is actually working.
 
-After running `init`, edit the generated `.ai/project.md` and
-`.ai/architecture.md` so they describe your real project, then commit
-everything.
+After running `init`, edit the generated `.ai/project.md` so it describes your
+real project, then commit everything.
 
 ## How agents read the generated files
 
@@ -195,7 +190,7 @@ agent does work
 ```
 
 The read order is fixed:
-`README.md → project.md → architecture.md → definition-of-done.md → review-checklist.md → memory.md → handoff.md`.
+`README.md → project.md → memory.md → handoff.md`.
 
 ## The only runtime rule
 
@@ -223,37 +218,24 @@ that reads CLAUDE.md, AGENTS.md, or opencode.md.
    instruction files. Only write facts that are supported by the repository —
    no placeholders, no "TODO", no invented purpose / commands / architecture.
 
-2. Create `.ai/` with seven files, each populated from the real repo state:
+2. Create `.ai/` with four files, each populated from the real repo state:
    - `README.md`             explains the convention; agents read these files
                              in order before any work and update `handoff.md`
                              before reporting done.
-   - `project.md`            purpose, stakeholders, scope, constraints,
-                             runtime, deploy targets, external services,
-                             non-goals.
-   - `architecture.md`       stack, repo layout, components, data flow,
-                             dependencies, entry points, visible decisions.
-   - `definition-of-done.md` real build / test / lint / typecheck / format
-                             commands; if a command is not defined, say so
-                             in one sentence rather than inventing one.
-   - `review-checklist.md`   practical PR checklist (correctness, tests,
-                             typing, lint, security, perf, docs, compat,
-                             deployment risk).
-   - `memory.md`             durable shared knowledge, conventions,
-                             constraints, recurring pitfalls.
-   - `handoff.md`            latest task, files changed, commands run, checks
-                             performed, current state, unresolved unknowns,
-                             next safe action.
+   - `project.md`            purpose, layout, workflow, done criteria.
+   - `memory.md`             stable facts, conventions, constraints, pitfalls.
+   - `handoff.md`            current task, active runs, next safe action,
+                             recently completed.
 
 3. Create thin root adapters:
-   - `CLAUDE.md` containing only `@./.ai/<file>` imports for the seven files
+   - `CLAUDE.md` containing only `@./.ai/<file>` imports for the four files
      above, in the read order defined by `.ai/README.md`.
    - `opencode.md` containing the same `@./.ai/<file>` imports in the same
      read order.
-   - `AGENTS.md` listing the same seven files in the same order as a numbered
-     reading list, plus the rule: "After future implementation, debugging,
-     refactor, review, documentation, setup, dependency, config, or test
-     tasks, update `.ai/handoff.md` before reporting done; update
-     `.ai/memory.md` when stable knowledge emerges."
+   - `AGENTS.md` listing the same four files in the same order as a numbered
+     reading list, plus the rule: "After any task, update `.ai/handoff.md`
+     before reporting done; update `.ai/memory.md` when stable knowledge
+     emerges."
 
 4. Verify: list the created files and run `git status`. Run any safe existing
    checks only if they are already configured in the repo.

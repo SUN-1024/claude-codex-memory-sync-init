@@ -35,8 +35,7 @@ repomemo init      # 写入 .ai/、CLAUDE.md、AGENTS.md、opencode.md(已存在
 repomemo check     # 校验脚手架是否完整、非空
 
 # 3. 让它真正属于你的项目
-#    编辑 .ai/project.md 与 .ai/architecture.md,如实描述项目
-#    替换 .ai/definition-of-done.md 中的"必需命令"段落
+#    编辑 .ai/project.md,如实描述项目
 #    git add .ai CLAUDE.md AGENTS.md opencode.md && git commit -m "chore: adopt repomemo"
 ```
 
@@ -47,13 +46,10 @@ repomemo check     # 校验脚手架是否完整、非空
 
 ```
 .ai/
-  README.md              # 约定与阅读顺序
-  project.md             # 目的、相关方、范围、非目标
-  architecture.md        # 技术栈、目录结构、组件、关键决策
-  definition-of-done.md  # 本仓库的"完成"标准
-  review-checklist.md    # PR 评审清单
+  README.md              # 约定、阅读顺序、写入规则
+  project.md             # 项目是什么、目录结构、工作流、完成标准
   memory.md              # 稳定的共享知识
-  handoff.md             # 最近一次任务的滚动状态
+  handoff.md             # 当前任务、活跃运行、下一步
 CLAUDE.md                # 适配器:用于解析 @./path 导入的 agent
 AGENTS.md                # 适配器:用于读编号清单的 agent
 opencode.md              # 适配器:用于解析 @./path 导入的 agent
@@ -164,7 +160,7 @@ repomemo --help
 还会校验根适配器是否按同一顺序指向同一组 `.ai/` 文件。在 repomemo
 源码仓库中,它也会校验 `templates/` 是否与 CLI 的脚手架文件列表一致。
 
-执行 `init` 之后,请编辑生成的 `.ai/project.md` 与 `.ai/architecture.md`,
+执行 `init` 之后,请编辑生成的 `.ai/project.md`,
 让它们如实描述你的项目,然后整体提交。
 
 ## agent 是如何读这套文件的
@@ -182,7 +178,7 @@ agent 开始工作
 ```
 
 阅读顺序固定为:
-`README.md → project.md → architecture.md → definition-of-done.md → review-checklist.md → memory.md → handoff.md`。
+`README.md → project.md → memory.md → handoff.md`。
 
 ## 唯一的运行时规则
 
@@ -207,27 +203,18 @@ agent 开始工作
    Docker / 部署文件、文档,以及已有的 AI 指令文件。只写仓库支持的事实——
    不许 TODO 占位,不许编造目的、命令、架构。
 
-2. 创建 `.ai/`,填入 7 个文件,内容必须来自真实的仓库状态:
+2. 创建 `.ai/`,填入 4 个文件,内容必须来自真实的仓库状态:
    - `README.md`             说明本约定;agent 在每次工作前按顺序读这些
                              文件,完成前先更新 `handoff.md`。
-   - `project.md`            目的、相关方、范围、约束、运行时、部署目标、
-                             外部服务、非目标。
-   - `architecture.md`       技术栈、仓库结构、组件、数据流、依赖、入口
-                             点、关键决策。
-   - `definition-of-done.md` 真实的 build / test / lint / typecheck /
-                             format 命令;若未定义请用一句话直接说明,
-                             不要编造。
-   - `review-checklist.md`   实用的 PR 评审清单(正确性、测试、类型、
-                             lint、安全、性能、文档、兼容性、部署风险)。
+   - `project.md`            项目目的、目录结构、工作流、完成标准。
    - `memory.md`             稳定的共享知识、约定、约束、反复踩到的坑。
-   - `handoff.md`            最近一次任务、改动文件、执行命令、已做检查、
-                             当前状态、未解之谜、下一步安全动作。
+   - `handoff.md`            当前任务、活跃运行、下一步、最近完成事项。
 
 3. 创建轻量根适配器:
    - `CLAUDE.md` 只包含 `@./.ai/<file>` 导入,顺序与 `.ai/README.md` 中
      定义的阅读顺序一致。
    - `opencode.md` 也包含同样顺序的 `@./.ai/<file>` 导入。
-   - `AGENTS.md` 用编号清单显式列出同样 7 个文件的同样顺序,并写明规则:
+   - `AGENTS.md` 用编号清单显式列出同样 4 个文件的同样顺序,并写明规则:
      "后续涉及实现、调试、重构、评审、文档、初始化、依赖、配置、测试的
      任务,完成前必须先更新 `.ai/handoff.md`;出现稳定知识时同步更新
      `.ai/memory.md`。"

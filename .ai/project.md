@@ -1,94 +1,75 @@
 # Project
 
-## Purpose
+## What This Project Is
 
-`repomemo` is a small CLI tool plus a markdown scaffold. Running `repomemo init`
-in a repository drops a `.ai/` directory and three thin root adapter files
-(`CLAUDE.md`, `AGENTS.md`, `opencode.md`) so any AI coding agent that respects
-any of these conventions reads the same project facts in the same order at
-session start.
+`repomemo` is a small CLI tool that drops a shared, version-controlled AI
+project memory into any repository. Running `repomemo init` creates a `.ai/`
+directory and three thin root adapter files so any AI coding agent that
+respects `CLAUDE.md`, `AGENTS.md`, or `opencode.md` reads the same project
+facts in the same order at session start.
 
-It exists because:
+## Main Layout
 
-- Different AI agents read different instruction files
-  (`CLAUDE.md` and `opencode.md` resolve `@./path` imports; `AGENTS.md` is read
-  as a plain numbered list).
-- Without a shared layout, two agents in the same repo drift: one knows about
-  a decision the other does not, and a human has to reconcile them.
+```
+repomemo/
+├── bin/repomemo          # Bash CLI (the tool itself)
+├── templates/            # what `repomemo init` writes into user repos
+│   ├── .ai/              # 4 markdown files + 3 root adapters
+│   ├── CLAUDE.md
+│   ├── AGENTS.md
+│   └── opencode.md
+├── tests/                # integration test suite
+├── homebrew/             # Homebrew formula (reference copy)
+├── install.sh            # curl one-liner installer
+├── package.json          # npm wrapper
+├── README.md / README.zh.md  # human-facing docs
+└── .github/workflows/    # CI / release automation
+```
 
-The repository is both the tool and a living example of the scaffold it
-generates: repomemo's own `.ai/` directory follows the convention it ships.
+## Stack
 
-## Users / stakeholders
+- **Bash** (3.2+) for the CLI. No compiler, no language runtime, no build step.
+- **Markdown** for the scaffold and docs.
+- **Git** + **GitHub** for versioning, hosting, releases, Actions.
+- **Homebrew**, **curl-pipe-bash**, and **npm** as parallel distribution channels.
 
-- **Engineers running multiple AI coding agents on the same repo** — the
-  primary audience.
-- **Engineers running any single agent** that respects `CLAUDE.md`,
-  `AGENTS.md`, or `opencode.md` — still benefits from the structure.
-- **Reviewers** of agent-authored PRs — `review-checklist.md` and
-  `definition-of-done.md` give them a stable rubric.
-- **Maintainers of repomemo** — install via Homebrew, the curl one-liner,
-  npm, or directly from a clone.
+## Standard Workflow
 
-## Scope
+```
+edit bin/repomemo or templates/
+  → bash -n bin/repomemo
+  → bash tests/test_repomemo.sh
+  → bash bin/repomemo check --strict .
+  → git add, commit, push
+  → tag vX.Y.Z → GitHub Action publishes release
+  → update homebrew tap with new SHA256
+```
 
-- The `bin/repomemo` Bash CLI (`init`, `check`, `--help`, `--version`).
-- The `templates/` directory: source of truth for what `repomemo init` writes.
-- The repository's own `.ai/` directory: meta-documentation about repomemo.
-- Bilingual entry-point READMEs (English + Simplified Chinese).
-- A Homebrew formula at `homebrew/repomemo.rb` for distribution via a tap.
-- A curl-pipe-bash installer at `install.sh`.
-- An npm wrapper (`package.json`, published as `repomemo`).
-- An integration test suite at `tests/test_repomemo.sh`.
-- A GitHub Actions release workflow that creates a GitHub release on tag push.
+## Done Criteria
 
-## Non-goals
+A change is done when:
 
-- Not a runtime, library, or language-specific framework.
-- Not a hook system or settings file generator (Claude Code's
-  `settings.json`, Cursor's rules, etc. live elsewhere).
-- Not opinionated about which AI coding agent is "primary" — all three adapters
-  are equal.
-- Not a replacement for repo-specific docs like `CONTRIBUTING.md` or ADRs;
-  repomemo is the *agent-facing* layer that complements them.
-- Not a Python / Node / Go application — keeping it as a single Bash script
-  is intentional. The npm package is a thin distribution wrapper around the
-  same Bash binary, not a Node implementation.
+1. `bash -n bin/repomemo` passes.
+2. `bash tests/test_repomemo.sh` passes (all tests, 0 failures).
+3. `bash bin/repomemo check --strict .` passes.
+4. `bash bin/repomemo check --verify .` passes (adapters match templates,
+   memory files are customized, no-private-memory instruction present).
+5. `.ai/handoff.md` was updated before the task was reported as done.
+6. If stable knowledge emerged, `.ai/memory.md` was updated.
+7. No secrets, tokens, or private hostnames were committed.
+8. `CLAUDE.md`, `AGENTS.md`, and `opencode.md` list the same `.ai/` files
+   in the same order.
+9. `README.md` and `README.zh.md` stay mirrored.
+10. `templates/` files match `SCAFFOLD_FILES` in `bin/repomemo`.
 
-## Constraints
+## Distribution
 
-- Bash-compatible (works under macOS `/bin/bash` and Linux `/usr/bin/env bash`).
-- Markdown only inside `.ai/` so any agent can read it.
-- Tool-agnostic wording inside `.ai/`.
-- Cross-platform: avoid symlinks; keep `CLAUDE.md`, `AGENTS.md`, and
-  `opencode.md` as real files so Windows and shallow clones work.
-- The CLI is **safe by default**: `init` never overwrites without `--force`.
+- **Homebrew**: `brew tap SUN-1024/repomemo && brew install repomemo`
+  Tap repo: `SUN-1024/homebrew-repomemo`
+- **Curl**: `curl -fsSL .../install.sh | bash`
+- **npm**: `npm install -g repomemo` (package name is `repomemo`)
+- **Source**: `git clone` + symlink `bin/repomemo` onto `$PATH`
 
-## Runtime assumptions
-
-- The user has Bash 3.2+ available (the version that ships with macOS).
-- The user has `cp`, `mkdir`, `find`, `readlink` — i.e. POSIX utilities.
-
-No build step, no compiler, no language runtime is required.
-
-## Deploy targets
-
-- **Homebrew**: `brew tap SUN-1024/repomemo && brew install repomemo`. The tap
-  repository (`SUN-1024/homebrew-repomemo`) hosts the canonical formula; the
-  copy at `homebrew/repomemo.rb` in this repo is for reference and review.
-- **Curl one-liner**: `curl -fsSL .../install.sh | bash`. Resolves the
-  latest release tag (or `REPOMEMO_VERSION`), unpacks the source tarball,
-  and installs into `$REPOMEMO_PREFIX/bin` and `$REPOMEMO_PREFIX/share`.
-- **npm**: `npm install -g repomemo` (the package name is `repomemo`
-  because `repomemo` is taken on the npm registry; the binary is still
-  `repomemo`).
-- **Manual install from source**: `git clone` + symlink `bin/repomemo` onto
-  `$PATH`.
-- **GitHub releases**: source tarballs published per tag via the release
-  workflow, used by Homebrew and `install.sh` as the install artifact.
-
-## External services
-
-- GitHub (hosting, releases, Actions).
-- Homebrew (distribution).
-- npm registry (distribution as `repomemo`).
+Releases are triggered by pushing a `v*.*.*` tag. Bumping a version touches:
+`bin/repomemo` (`VERSION=`), `homebrew/repomemo.rb`, `package.json`,
+`tests/test_repomemo.sh` (`EXPECTED_VERSION`), plus a new git tag.

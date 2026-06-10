@@ -77,9 +77,6 @@ assert_file_nonempty() {
 EXPECTED_FILES=(
   ".ai/README.md"
   ".ai/project.md"
-  ".ai/architecture.md"
-  ".ai/definition-of-done.md"
-  ".ai/review-checklist.md"
   ".ai/memory.md"
   ".ai/handoff.md"
   "CLAUDE.md"
@@ -120,7 +117,7 @@ test_init_creates_all_files() {
   for rel in "${EXPECTED_FILES[@]}"; do
     assert_file_nonempty "$WORK/$rel" || return 1
   done
-  assert_contains "$out" "10 created" "summary line" || return 1
+  assert_contains "$out" "7 created" "summary line" || return 1
 }
 
 # 4. init is idempotent: a second run reports everything as skipped and
@@ -139,7 +136,7 @@ test_init_idempotent() {
   rc=$?
   assert_eq "$rc" "0" "exit code" || return 1
   assert_contains "$out" "0 created" "no new files" || return 1
-  assert_contains "$out" "10 skipped" "all skipped"  || return 1
+  assert_contains "$out" "7 skipped" "all skipped"  || return 1
 
   local after_sums
   after_sums="$(cd "$WORK" && shasum "${EXPECTED_FILES[@]}")"
@@ -157,7 +154,7 @@ test_init_force_overwrites() {
   out="$(bash "$MEMSYNC" init --target "$WORK" --force 2>&1)"
   rc=$?
   assert_eq "$rc" "0" "exit code" || return 1
-  assert_contains "$out" "10 overwritten" "all overwritten" || return 1
+  assert_contains "$out" "7 overwritten" "all overwritten" || return 1
 
   if grep -q "MUTATED" "$WORK/.ai/handoff.md"; then
     echo "  expected --force to replace mutated content, but it remains" >&2
@@ -203,7 +200,7 @@ test_check_strict_passes_after_init() {
   assert_contains "$out" "CLAUDE.md imports" "strict checks CLAUDE imports" || return 1
   assert_contains "$out" "opencode.md imports" "strict checks opencode imports" || return 1
   assert_contains "$out" "AGENTS.md list" "strict checks AGENTS list" || return 1
-  assert_contains "$out" "repomemo check: OK (10 files, strict)" "strict OK summary" || return 1
+  assert_contains "$out" "repomemo check: OK (7 files, strict)" "strict OK summary" || return 1
 }
 
 # 9. strict check catches adapter drift even when all files exist.
@@ -342,7 +339,7 @@ test_verify_passes_when_customized() {
   assert_eq "$rc" "0" "exit code" || { echo "$out" | sed 's/^/    /' >&2; return 1; }
   assert_contains "$out" "contains project knowledge" "memory customized" || return 1
   assert_contains "$out" "has been updated" "handoff customized" || return 1
-  assert_contains "$out" "OK (10 files, strict, verify)" "verify OK summary" || return 1
+  assert_contains "$out" "OK (7 files, strict, verify)" "verify OK summary" || return 1
 }
 
 # 18. --verify fails on a fresh init (memory files still match templates).

@@ -1,43 +1,31 @@
 # Project
 
-## Purpose
+## What This Project Is
 
-Describe in one or two paragraphs what this project does and why it exists.
-Replace this placeholder text with the real purpose before declaring `.ai/`
-initialization complete.
+Describe in one or two sentences what this project does and why it exists.
+Replace this text before declaring `.ai/` initialization complete.
 
-## Users / stakeholders
+## Main Layout
 
-- Who uses or depends on this project.
-- Who reviews changes to it.
-- Anyone else whose decisions shape its direction.
+Brief directory map so every agent finds things quickly:
 
-## Scope
+```
+project-root/
+├── ...                     # top-level directories and entry points
+└── ...                     # update when directories are added or renamed
+```
 
-- What this project covers.
-- The kinds of changes that belong here.
+## Standard Workflow
 
-## Non-goals
+The normal flow for getting work done in this project. Describe in a few
+bullet points — enough that a new agent can follow it without reading code.
 
-- What this project deliberately does **not** do.
-- Adjacent problems handled elsewhere.
+## Done Criteria
 
-## Constraints
+What "done" means for a change in this project:
 
-- Hard requirements (compliance, performance, compatibility).
-- External APIs or contracts that must be respected.
-
-## Runtime assumptions
-
-- Where the project runs (server, CLI, browser, mobile).
-- Required runtimes, versions, OS support.
-
-## Deploy targets
-
-- Where the project is deployed, if anywhere.
-- If not deployed, say so in one sentence.
-
-## External services
-
-- Databases, queues, third-party APIs, cloud providers in use.
-- If none, say so in one sentence.
+1. Required commands pass locally (build, test, lint, typecheck — list the
+   real commands this project uses).
+2. `.ai/handoff.md` was updated before the task was reported as done.
+3. If stable knowledge emerged, `.ai/memory.md` was updated.
+4. No secrets, tokens, or private hostnames were committed.

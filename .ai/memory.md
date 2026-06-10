@@ -1,112 +1,59 @@
 # Memory — durable shared knowledge
 
-Stable, slow-changing facts that any agent should know after reading this
-once. Add an entry when a discovery would have saved you time on the previous
-task. Remove entries that go stale.
+Stable, slow-changing facts. One sentence per entry. Do NOT put current progress,
+active runs, PIDs, or task status here — those belong in `handoff.md`.
 
 ## Repository nature
 
-- The repository is both the CLI tool *and* the convention it ships:
-  the same `.ai/` files an adopting project would receive live at the root,
-  populated with facts about repomemo itself.
-- The CLI is a single Bash script. There is no compiler or build step;
-  changing behavior means editing `bin/repomemo` directly.
+- This repository is both the CLI tool and the convention it ships.
+- The CLI is a single Bash script. No compiler or build step.
 
 ## Adapter conventions
 
-- `CLAUDE.md` and `opencode.md` MUST stay thin: only `@./path` imports plus,
-  optionally, a few lines of agent-specific instruction. No prose duplicated
-  from `.ai/`.
-- `AGENTS.md` MUST list the seven `.ai/` files in the read order defined in
-  `.ai/README.md`, and MUST restate the post-task update rule. Agents that
-  read `AGENTS.md` typically do not resolve `@`-imports, so the list is
-  explicit.
-- `CLAUDE.md`, `AGENTS.md`, and `opencode.md` exist in **two places**: at the
-  repo root (repomemo's own adapters) and under `templates/` (what `repomemo
-  init` writes for users). All three sets must always be in sync with each
-  other and with `bin/repomemo`'s `SCAFFOLD_FILES` array.
+- `CLAUDE.md` and `opencode.md`: thin @import wrappers + agent-specific instruction.
+- `AGENTS.md`: numbered file list + post-task update rule.
+- All three adapters exist in two places: repo root and `templates/`. Both
+  copies must always be in sync with `SCAFFOLD_FILES`.
 
 ## CLI conventions
 
-- `bin/repomemo init` is **safe by default** — it skips existing files. Only
-  `--force` overwrites. Never change this default without a release note.
-- `bin/repomemo check --strict` verifies adapter read order and content drift,
-  and in the repomemo source repo also verifies that `templates/` matches the
-  runtime `SCAFFOLD_FILES` list.
-- `bin/repomemo check --verify` adds memory freshness checks: `.ai/memory.md`
-  and `.ai/handoff.md` must differ from their templates (proving agents are
-  writing to them), and adapters must contain the no-private-memory instruction.
-- `bin/repomemo upgrade` updates only the three root adapter files from the
-  installed templates; it never touches `.ai/` files. Pass `--fetch` to
-  download the latest templates from the GitHub release first.
-- `bin/repomemo` resolves its template directory relative to its own location
-  (following symlinks). The Homebrew formula rewrites the resolved path at
-  install time; do not rely on environment variables for template lookup.
-- Version is hard-coded at the top of `bin/repomemo` as `VERSION="X.Y.Z"`.
-  Bumping the version means editing `bin/repomemo`, `homebrew/repomemo.rb`,
-  and `package.json` together (see *Distribution* below for details).
-
-## Update protocol
-
-- Update `.ai/handoff.md` **before** reporting any task as done, even small
-  ones. The user relies on it as the live status file.
-- Only put truly durable knowledge in this file. Task-specific notes belong
-  in `handoff.md`; they get overwritten each task.
+- `init` is safe by default — skips existing files. Only `--force` overwrites.
+- `check --strict` verifies adapter read order and template sync.
+- `check --verify` adds memory freshness and adapter instruction checks.
+- `upgrade` updates root adapters only; `--fetch` pulls from GitHub main branch.
+- `fix` restores corrupted adapters, fills missing `.ai/` files, warns about
+  external memory stores.
+- Template directory resolved relative to script location. Homebrew formula
+  rewrites the path at install time.
 
 ## Distribution
 
-- The Homebrew tap repository is `SUN-1024/homebrew-repomemo`.
-- The formula at `homebrew/repomemo.rb` in this repo is a reference copy; the
-  canonical version lives in the tap.
-- Releases are triggered by pushing a `v*.*.*` tag. The action attaches the
-  source tarball and prints its SHA256 so the formula can be updated.
-- The npm package name is **`repomemo`**. When publishing, update the
-  `version` field in `package.json` in lockstep with `bin/repomemo` and
-  `homebrew/repomemo.rb`.
-- The curl installer is `install.sh` at the repo root. It is served via
-  `https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh`,
-  so any change must keep `set -euo pipefail` semantics safe and must keep
-  honoring `REPOMEMO_VERSION` and `REPOMEMO_PREFIX`.
-- Bumping a version is a five-file change: `bin/repomemo` (`VERSION=`),
-  `homebrew/repomemo.rb` (`version`, `url`, `sha256`), `package.json`
-  (`version`), plus the `EXPECTED_VERSION` in `tests/test_repomemo.sh`, and
-  a new git tag. `install.sh` reads the latest tag at runtime, so it does
-  not need an edit.
+- Tap: `SUN-1024/homebrew-repomemo`. Formula at `homebrew/repomemo.rb` is a
+  reference copy.
+- npm package name: `repomemo`.
+- Version bump: 5 files (`bin/repomemo`, `homebrew/repomemo.rb`, `package.json`,
+  `tests/test_repomemo.sh`, git tag).
 
 ## Branding
 
-- repomemo is **tool-neutral**. No single AI coding agent (Claude Code,
-  Codex, Cursor, etc.) is named as a contributor, author, maintainer, or
-  project identity. Listed agents are compatibility targets only.
-- When adding new agent names, list them as compatibility references, not
-  as authors.
+- Tool-neutral. No single AI agent is named as contributor, author, or owner.
+- Listed agents are compatibility targets only.
 
 ## Language
 
-- All `.ai/` content is written in English so any agent can parse it.
-- Human-facing READMEs are bilingual: `README.md` (English) and
-  `README.zh.md` (Simplified Chinese). Keep them in sync per change.
+- All `.ai/` content in English.
+- Human-facing READMEs: bilingual (English + Simplified Chinese).
 
 ## Cross-platform
 
-- Do not introduce symlinks inside the repo. `CLAUDE.md`, `AGENTS.md`, and
-  `opencode.md` are real files. Reasons: Windows clones, shallow clones, and
-  some CI runners handle symlinks inconsistently.
-- Bash version target is **3.2** (macOS default). Avoid Bash 4+ syntax such
-  as associative arrays.
+- No symlinks. Real adapter files.
+- Bash 3.2 target (macOS default). No Bash 4+ syntax.
 
 ## Common pitfalls
 
 - Some agents have built-in private memory systems (e.g. Claude Code's
-  `~/.claude/projects/.../memory/`). These compete with `.ai/memory.md`.
-  Root adapters now include instructions to route project knowledge to
-  `.ai/` instead of agent-private stores. Private memory is for user
-  preferences only.
-- Do not add a hook configuration (`.claude/settings.json`, Cursor rules,
-  etc.) here. Hooks belong to the consuming project and depend on its
-  language and tooling.
-- Do not rename `.ai/` to something else — all three adapters point at it by
-  name. A rename is a breaking change for every downstream consumer.
-- Do not add Chinese text inside `.ai/`. It bloats the agent context for
-  English-speaking agents and the bilingual coverage already lives in the
-  human-facing READMEs.
+  `~/.claude/projects/.../memory/`). Root adapters instruct agents to route
+  project knowledge to `.ai/` instead.
+- Do not add hook configurations here.
+- Do not rename `.ai/` — breaks all downstream consumers.
+- Do not add Chinese text inside `.ai/`.
