@@ -1,22 +1,22 @@
 # Handoff
 
 Update this file **before** reporting any task as done. Overwrite previous
-sections; this file is not a changelog. Keep it short.
+sections; this file is not a changelog. Keep it under 100 lines.
 
 ## Current Task
 
-One paragraph describing what is being worked on right now.
+REPLACE-ME: What is being worked on right now.
 
 ## Active Runs
 
 | task | machine | pid | output path | next check |
+|---|---|---|---|---|
+| REPLACE-ME | | | | |
 
 ## Next Safe Action
 
-The single next step that does not require new decisions. Anyone reading this
-file should be able to pick it up without further context.
+REPLACE-ME: The single next step with no new decisions needed.
 
 ## Recently Completed
 
-Last 3–5 completed tasks (one line each). Older entries can be archived to
-`docs/` or similar.
+- REPLACE-ME: Last 3-5 completed tasks (one line each)

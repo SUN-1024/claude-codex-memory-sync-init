@@ -297,23 +297,23 @@ run_verify_checks() {
     echo "Fix instructions for AI coding agents:"
     echo
     if [ "$need_memory" -eq 1 ]; then
-      echo "  1. Inspect this repository (code, docs, config, git log) and write"
-      echo "     stable project facts to .ai/memory.md. Include: conventions,"
-      echo "     constraints, common pitfalls, external integrations — facts"
-      echo "     that would save the next agent time. Replace the template"
-      echo "     sections with real project knowledge."
+      echo "  1. Open .ai/memory.md and replace the template sections with"
+      echo "     real project knowledge. Inspect the repo (code, docs, config,"
+      echo "     git log) and write down: conventions, constraints, common"
+      echo "     pitfalls, external integrations. One sentence per fact."
+      echo "     Delete the placeholder descriptions — keep only real facts."
       echo
     fi
     if [ "$need_handoff" -eq 1 ]; then
-      echo "  2. Update .ai/handoff.md to reflect the current task. Overwrite"
-      echo "     the template sections with: Latest task, Files changed,"
-      echo "     Commands run, Checks performed, Current state, and"
-      echo "     Unresolved unknowns."
+      echo "  2. Open .ai/handoff.md and replace each REPLACE-ME line with"
+      echo "     the current reality: what task is in progress, which runs"
+      echo "     are active (machine, pid, output), what the next safe action"
+      echo "     is, and the last few completed items."
       echo
     fi
     if [ "$need_adapter" -eq 1 ]; then
       echo "  3. Run: repomemo upgrade"
-      echo "     This updates the root adapters with the no-private-memory"
+      echo "     This restores the root adapters with the no-private-memory"
       echo "     instruction so project knowledge stays in .ai/ files."
       echo
     fi
@@ -426,6 +426,36 @@ cmd_init() {
   if [ "$skipped" -gt 0 ] && [ "$force" -eq 0 ]; then
     echo
     echo "Some files were left untouched. Re-run with --force to overwrite them."
+  fi
+
+  # Print agent-facing next-step instructions after a fresh init.
+  if [ "$created" -gt 0 ]; then
+    echo
+    echo "──────────────────────────────────────────────────────────"
+    echo "Next steps for the AI agent working in this project:"
+    echo
+    echo "  1. Inspect the repository and populate .ai/project.md:"
+    echo "     - What this project is (one sentence)"
+    echo "     - Main directories and what they contain"
+    echo "     - Standard workflow for getting work done"
+    echo "     - What counts as \"done\" for a task"
+    echo
+    echo "  2. Record stable facts in .ai/memory.md:"
+    echo "     - Conventions, constraints, known pitfalls"
+    echo "     - Do NOT put current progress or PIDs here"
+    echo
+    echo "  3. Set up .ai/handoff.md with the current task state:"
+    echo "     - What is being worked on right now"
+    echo "     - Any active runs (machine, pid, output path)"
+    echo "     - Next safe action"
+    echo
+    echo "  4. After populating these files, verify with:"
+    echo "     repomemo check --verify"
+    echo
+    echo "  Do NOT store project knowledge in agent-private memory."
+    echo "  Write everything to the .ai/ files — they are shared"
+    echo "  across all agents (Claude Code, Codex, OpenCode)."
+    echo "──────────────────────────────────────────────────────────"
   fi
 }
 
