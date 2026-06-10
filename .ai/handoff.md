@@ -2,8 +2,8 @@
 
 ## Current Task
 
-Completed dogfood test: verified repomemo design works end-to-end in a real
-coding agent project. No gaps found.
+Completed comprehensive stress testing: 37/37 hybrid scenarios passed covering
+LaTeX paper + code + SSH remote experiments + result_key + experiments.md.
 
 ## Active Runs
 
@@ -12,15 +12,15 @@ coding agent project. No gaps found.
 
 ## Next Safe Action
 
-Bump version, tag release, or let users get changes via `repomemo upgrade --fetch`.
+Bump version to v1.4.0 and tag release. All features verified end-to-end.
 
 ## Recently Completed
 
-- End-to-end dogfood test: 6 phases, all passed
-  - Init → verify fails → agent populates → verify passes → task → next session verify passes
-  - Disaster recovery: corrupted adapter → fix → restored → verify passes
-- Added session-start protocol: agent runs `check --verify` at every session start
-- Simplified scaffold: 7 .ai/ files → 4 (README, project, memory, handoff)
-- Added `repomemo fix` command
-- Added `check --verify` with memory freshness checks
-- Added `repomemo upgrade` with `--fetch`
+- Hybrid stress test: 37/37 (LaTeX + SSH + experiments + disaster recovery)
+- ML workflow stress test: 56/56 (multi-agent, experiment tracking)
+- Simplified scaffold: 10 files → 7 (4 .ai/ + 3 adapters)
+- Session-start protocol: agent runs `check --verify` at session start
+- Init prints agent-facing next steps
+- `repomemo fix` command (adapter recovery + missing file restore)
+- `check --verify` (memory freshness + adapter instructions)
+- `repomemo upgrade` with `--fetch`
