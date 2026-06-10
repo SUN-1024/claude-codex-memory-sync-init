@@ -16,6 +16,16 @@ Agents load these files in this exact order, every session:
 The three root adapters (`CLAUDE.md`, `AGENTS.md`, `opencode.md`) all point
 into this directory. Do not duplicate content into them.
 
+## Session start
+
+At the start of every session, before doing any work, run:
+
+    repomemo check --verify
+
+This confirms the shared memory is healthy — the previous agent updated
+`handoff.md` and `memory.md` as required, and no adapters have been corrupted.
+If it fails, follow the printed fix instructions.
+
 ## Write rules
 
 - **After every task**, update `handoff.md` *before* reporting the task as
