@@ -10,10 +10,12 @@ const check = process.argv.includes("--check");
 
 for (const file of ["README.md", "README.zh.md"]) {
   const content = await readFile(file, "utf8");
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const localizedBlock = block.replaceAll("\n", eol);
   const startIndex = content.indexOf(start);
   const endIndex = content.indexOf(end);
   if (startIndex === -1 || endIndex < startIndex) throw new Error(`${file} is missing matrix markers`);
-  const next = `${content.slice(0, startIndex)}${block}${content.slice(endIndex + end.length)}`;
+  const next = `${content.slice(0, startIndex)}${localizedBlock}${content.slice(endIndex + end.length)}`;
   if (check && next !== content) {
     process.stderr.write(`${file}: support matrix is out of date\n`);
     process.exitCode = 1;

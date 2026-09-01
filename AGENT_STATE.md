@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: blocked
-- Updated: 2026-09-01T08:15:12Z
+- Updated: 2026-09-01T08:29:42Z
 - Last Harness: codex
 - Scope: .
 
@@ -18,6 +18,7 @@ Release RepoMemo 2.0 as a Git-neutral Agent-native repository bootstrap.
 - Migrated the repository itself to the v2 contract and removed the v1 scaffold, converter-era assets, installer, and mirrored Homebrew formula.
 - Added the data-driven eight-Harness registry, synchronized documentation, migration guide, and cross-platform CI/release workflows.
 - Completed local release artifact, installed-package, `pnpm dlx`, `npx`, and self-doctor validation.
+- Pushed the preserved `v1` branch and v2 implementation to GitHub without rewriting history.
 
 ## Decisions
 
@@ -30,6 +31,7 @@ Release RepoMemo 2.0 as a Git-neutral Agent-native repository bootstrap.
 - The system Homebrew Node 22 cannot load its current simdjson ABI; local development uses the bundled Node 24 runtime instead.
 - pnpm initially blocked esbuild's install script until the project explicitly allowed only esbuild builds.
 - GitHub CLI authentication is expired and npm is not logged in; publication requires the user's interactive login.
+- The first hosted CI run exposed CRLF-sensitive matrix rendering on Windows; the renderer now preserves each README's native line endings.
 
 ## Touched Paths
 
@@ -55,7 +57,9 @@ Release RepoMemo 2.0 as a Git-neutral Agent-native repository bootstrap.
 - `pnpm pack` produced only the intended six files; fresh tarball install, CLI binary, init, and doctor passed.
 - Local `pnpm dlx` and `npx` tarball entrypoints both reported `repomemo 2.0.0`.
 - Remote `origin/main` still matches baseline `0338cf0`; no rebase is needed.
+- GitHub and npm authentication succeeded for `SUN-1024` and `sun1024`.
+- The CRLF matrix fixture and the full local 29-test verification passed after the Windows fix.
 
 ## Next Action
 
-After the user completes GitHub and npm login, push the preserved `v1` branch, run hosted CI, publish GitHub/npm/Homebrew channels, verify them, and mark this state done.
+Push the Windows CI fix, require all six hosted jobs to pass, then publish and verify GitHub/npm/Homebrew channels before marking this state done.
