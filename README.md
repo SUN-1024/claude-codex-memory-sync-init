@@ -2,293 +2,153 @@
 
 > **Languages:** **English** · [简体中文](./README.zh.md)
 
-A small CLI that drops a shared, version-controlled **AI project memory** into
-any repository. Run `repomemo init` and any AI coding agent that respects
-the `CLAUDE.md`, `AGENTS.md`, or `opencode.md` convention will read the same
-project facts, in the same order, every session.
+**One project. Any coding agent. No switching ceremony.**
 
-```bash
-repomemo init      # scaffold .ai/, CLAUDE.md, AGENTS.md, opencode.md in the current repo
-repomemo check     # validate the scaffold is complete and non-empty
-repomemo check --verify  # also check that shared memory is actually being used
-repomemo upgrade   # update root adapters from local templates
-repomemo upgrade --fetch  # fetch latest templates from GitHub, then upgrade
-```
-
-repomemo is **tool-neutral**. It is not authored by, owned by, or specific to
-any single AI agent. The list of supported / compatible agents (Claude Code,
-OpenCode, Codex, Cursor, and any other tool that reads `CLAUDE.md`,
-`AGENTS.md`, or `opencode.md`) is not the same as the list of project
-contributors.
+RepoMemo is a minimal, Git-neutral continuity layer for agent-native project
+directories. It bootstraps one portable file contract; after that, switch
+between coding Harnesses directly without running convert, sync, generate,
+export, or handoff commands.
 
 ## Quick start
 
 ```bash
-# 1. Install (pick one)
-brew tap SUN-1024/repomemo && brew install repomemo
-# or:
-curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh | bash
-# or:
-npm install -g repomemo
+cd my-project
+npx repomemo@latest init
 
-# 2. Run inside your project
-cd /path/to/your/repo
-repomemo init      # writes .ai/, CLAUDE.md, AGENTS.md, opencode.md (skips files that already exist)
-repomemo check     # validates the scaffold is complete and non-empty
-
-# 3. Make it yours
-#    edit .ai/project.md to describe the real project
-#    git add .ai CLAUDE.md AGENTS.md opencode.md && git commit -m "chore: adopt repomemo"
+# Switch directly after the one-time bootstrap
+codex
+claude
+gemini
+opencode
 ```
 
-After step 3, every AI coding agent that respects `CLAUDE.md`, `AGENTS.md`,
-or `opencode.md` reads the same files in the same order at session start.
+`npx @latest` may need the network to obtain RepoMemo. Once the CLI is locally
+available, `init` and `doctor` make no network calls.
 
-## What it generates
+## The contract
 
+```text
+my-project/
+├── AGENTS.md              # permanent governance; canonical rules
+├── AGENT_STATE.md         # advisory current-task and handoff data
+├── .agents/
+│   └── skills/            # canonical Agent Skills
+├── CLAUDE.md              # thin @AGENTS.md bridge
+├── GEMINI.md              # thin @AGENTS.md bridge
+├── .claude/skills         # link to .agents/skills when available
+└── .zcode/skills          # link to .agents/skills when available
 ```
-.ai/
-  README.md              # convention + read order + write rules
-  project.md             # what, layout, workflow, done criteria
-  memory.md              # durable shared knowledge
-  handoff.md             # current task, active runs, next action
-CLAUDE.md                # adapter for agents that resolve @./path imports
-AGENTS.md                # adapter for agents that read a numbered file list
-opencode.md              # adapter for agents that resolve @./path imports
+
+The three planes are intentionally separate:
+
+- **Governance:** `AGENTS.md` and `.agents/skills`.
+- **Continuity:** `AGENT_STATE.md`.
+- **Compatibility:** tiny imports and in-project links only where required.
+
+RepoMemo manages only explicit HTML-comment blocks. User-authored text outside
+those blocks is preserved. Ambiguous, duplicate, or malformed markers fail
+closed instead of being guessed or overwritten.
+
+## Commands
+
+```bash
+repomemo init [--target DIR] [--dry-run]
+repomemo doctor [--target DIR] [--harness ID] [--json]
+repomemo doctor --repair [--target DIR] [--harness ID] [--json]
 ```
 
-`CLAUDE.md`, `AGENTS.md`, and `opencode.md` never duplicate content; they only
-point into `.ai/`. Every agent sees the same files in the same order.
+- `init` uses exactly the supplied directory or current directory. It never
+  searches for a Git root and requires the target directory to exist.
+- `doctor` is read-only by default. It checks the contract, state schema,
+  bridges, links, nested/ancestor instructions, and compatibility evidence.
+- `doctor --repair` repairs only canonical managed blocks and safe links. It
+  never rewrites `AGENT_STATE.md` or foreign content.
 
-## How it works
+RepoMemo never runs Git, initializes a repository, edits `.gitignore`, invokes
+the network, or executes scripts found in Skills.
 
-<p align="center">
-  <img src="pic_intro_repomemo/pic_EN_repomemo/EN_01.png" alt="RepoMemo overview" width="80%">
-</p>
+## State is data, not authority
 
-<p align="center">
-  <img src="pic_intro_repomemo/pic_EN_repomemo/EN_02.png" alt="How agents read the scaffold" width="80%">
-  <img src="pic_intro_repomemo/pic_EN_repomemo/EN_03.png" alt="Agent workflow" width="80%">
-  <img src="pic_intro_repomemo/pic_EN_repomemo/EN_04.png" alt="Multi-agent shared memory" width="80%">
-</p>
+`AGENT_STATE.md` has a fixed Markdown schema with `idle`, `active`, `blocked`,
+or `done` status plus goal, completed work, decisions, failures, touched paths,
+validation, and next action. Paths are project-relative.
 
-## Why
+The current filesystem and authoritative project documentation win over stale
+state. `AGENTS.md` wins over state on governance conflicts. A single writer per
+working directory is an operating assumption, not a lock or concurrency
+guarantee.
 
-Different AI coding agents read different instruction files at session start.
-Without a shared layout, two agents in the same repo drift: one knows about
-a decision the other does not, and a human spends time reconciling them.
+## Harness compatibility
 
-repomemo encodes the smallest convention that gives every supported agent
-a single source of truth, without locking the project into a particular
-language, framework, or harness.
+Compatibility and evidence are separate. `native` means the Harness reads the
+canonical path itself; `bridge` means a pointer/import/link is required;
+`manual` means the Harness must follow the `AGENTS.md` instruction; and
+`unsupported` means RepoMemo has no safe route. Evidence stays `official` or
+`source-verified` until a real versioned Harness smoke test is recorded—no
+unverified green checks.
+
+<!-- repomemo:matrix:start -->
+| Harness | Rules | Skills | Evidence |
+|---|---|---|---|
+| Codex | native | native | official |
+| Claude Code | bridge | bridge | official |
+| Gemini CLI | bridge | native | official |
+| OpenCode | native | native | official |
+| Cursor | native | native | official |
+| GitHub Copilot CLI | native | native | official |
+| ZCode | native | bridge | official |
+| DeepSeek Harness | native | native | source-verified |
+<!-- repomemo:matrix:end -->
+
+The registry records official documentation, verification date, paths, and
+mechanisms. RepoMemo does not convert MCP, hooks, permissions, commands, or
+Harness-specific configuration.
+
+## Git-neutral, not root-neutral
+
+RepoMemo behaves the same in a plain directory and a Git working tree and never
+calls Git. Individual Harnesses may still use `.git` or other markers to choose
+their project root. `doctor` reports nearby root/instruction files so that this
+difference is visible rather than hidden.
+
+Bootstrap each working copy once. Symlinks and Windows junctions are local
+filesystem details and should not be treated as portable session state.
 
 ## Install
 
-### Homebrew (recommended on macOS)
-
 ```bash
+# No global install
+npx repomemo@latest init
+
+# Global npm install
+npm install --global repomemo
+
+# Homebrew
 brew tap SUN-1024/repomemo
 brew install repomemo
 ```
 
-The tap repository is `SUN-1024/homebrew-repomemo`; the formula is mirrored
-inside this repo at `homebrew/repomemo.rb` for reference.
+Node.js 22 or newer is required. RepoMemo has zero runtime dependencies.
 
-### Curl one-liner (macOS / Linux)
+## v1 users
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh | bash
-```
-
-The script downloads the latest release tarball, installs `repomemo` to
-`/usr/local/bin/repomemo`, and places the templates under
-`/usr/local/share/repomemo/templates`. It uses `sudo` only if the prefix is
-not writable. Override the install location or version with environment
-variables:
-
-```bash
-REPOMEMO_PREFIX="$HOME/.local" \
-REPOMEMO_VERSION=v1.0.0 \
-  bash <(curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh)
-```
-
-### npm (cross-platform)
-
-Install the npm package:
-
-```bash
-npm install -g repomemo
-# or:
-pnpm add -g repomemo
-# or:
-yarn global add repomemo
-```
-
-The package is a thin wrapper around the same Bash CLI, so a Bash 3.2+
-shell is still required.
-
-### From source
-
-```bash
-git clone https://github.com/SUN-1024/repomemo.git
-cd repomemo
-ln -s "$PWD/bin/repomemo" /usr/local/bin/repomemo   # or any directory on $PATH
-```
-
-### Without installing
-
-```bash
-git clone https://github.com/SUN-1024/repomemo.git
-./repomemo/bin/repomemo --help
-```
-
-## Usage
-
-```bash
-repomemo init                    # initialize in the current directory
-repomemo init --target ./my-app  # initialize in a different directory
-repomemo init --force            # overwrite existing files (dangerous)
-repomemo upgrade                 # update root adapters from local templates
-repomemo upgrade --fetch          # fetch latest from GitHub, then upgrade
-repomemo upgrade --target ./my-app
-repomemo check                   # validate the current directory
-repomemo check ./my-app          # validate another path
-repomemo check --strict          # also validate adapter order and template sync
-repomemo check --verify          # strict + verify memory is actually in use
-repomemo --version
-repomemo --help
-```
-
-`repomemo init` is **safe by default**: existing files are reported as
-*skipped*, never overwritten silently. Pass `--force` only when you know you
-want to replace the current scaffold.
-
-`repomemo check` validates that the scaffold files exist and are non-empty.
-`repomemo check --strict` additionally verifies that the root adapters point at
-the same `.ai/` files in the same order. In the repomemo source repository, it
-also checks that `templates/` matches the CLI's scaffold file list.
-`repomemo check --verify` does all of the above, then checks that `.ai/memory.md`
-and `.ai/handoff.md` have been customized (not left as template placeholders)
-and that every root adapter has the no-private-memory instruction — confirming
-the shared memory system is actually working.
-
-After running `init`, edit the generated `.ai/project.md` so it describes your
-real project, then commit everything.
-
-## How agents read the generated files
-
-```
-session starts
-  agent that reads CLAUDE.md   ─► resolves @./path imports ─► loads .ai/* in order
-  agent that reads opencode.md ─► resolves @./path imports ─► loads .ai/* in order
-  agent that reads AGENTS.md   ─► follows the numbered list ─► loads .ai/* in order
-
-agent does work
-  before reporting "done":
-    update .ai/handoff.md   (always)
-    update .ai/memory.md    (when a stable fact emerges)
-```
-
-The read order is fixed:
-`README.md → project.md → memory.md → handoff.md`.
-
-## The only runtime rule
-
-After **any** implementation, debugging, refactor, review, documentation,
-setup, dependency, config, or test-related task, agents update
-`.ai/handoff.md` **before** declaring the task done. Stable knowledge
-discovered during the task is appended to `.ai/memory.md` (or the most
-relevant `.ai/` file) in the same change.
-
-`.ai/` files never contain `TODO` / `TBD` / placeholder text. If a fact is
-genuinely undefined for a project, the file says so in one clear sentence.
-
-## Without installing the CLI: paste-a-prompt path
-
-If you would rather have an agent read your repo and generate the scaffold
-from scratch (instead of using the CLI), paste the following prompt into a
-fresh session of any AI coding agent in the target repository:
-
-```text
-Initialize this repository for shared AI project memory across any agent
-that reads CLAUDE.md, AGENTS.md, or opencode.md.
-
-1. Inspect the repo first: READMEs, package manifests, source tree, configs,
-   scripts, tests, CI, Docker / deploy files, docs, and any existing AI
-   instruction files. Only write facts that are supported by the repository —
-   no placeholders, no "TODO", no invented purpose / commands / architecture.
-
-2. Create `.ai/` with four files, each populated from the real repo state:
-   - `README.md`             explains the convention; agents read these files
-                             in order before any work and update `handoff.md`
-                             before reporting done.
-   - `project.md`            purpose, layout, workflow, done criteria.
-   - `memory.md`             stable facts, conventions, constraints, pitfalls.
-   - `handoff.md`            current task, active runs, next safe action,
-                             recently completed.
-
-3. Create thin root adapters:
-   - `CLAUDE.md` containing only `@./.ai/<file>` imports for the four files
-     above, in the read order defined by `.ai/README.md`.
-   - `opencode.md` containing the same `@./.ai/<file>` imports in the same
-     read order.
-   - `AGENTS.md` listing the same four files in the same order as a numbered
-     reading list, plus the rule: "After any task, update `.ai/handoff.md`
-     before reporting done; update `.ai/memory.md` when stable knowledge
-     emerges."
-
-4. Verify: list the created files and run `git status`. Run any safe existing
-   checks only if they are already configured in the repo.
-
-5. Final response: summarize files created/updated, key facts inferred,
-   unknowns, and checks run.
-```
-
-## Supported AI coding agents
-
-repomemo ships with three adapters because different agents read different
-instruction files at session start:
-
-- `CLAUDE.md` — used by agents that natively resolve `@./path` imports.
-- `opencode.md` — used by agents that natively resolve `@./path` imports.
-- `AGENTS.md` — used by agents that read an explicit numbered file list.
-
-Listed agents are **compatible**, not contributors. repomemo does not ship as
-a plugin to any of them, and they did not author this repository.
+Version 2 is a deliberate clean break. It does not automatically transform
+`.ai/` memory into the new contract. Follow [MIGRATION-v1-v2.md](./MIGRATION-v1-v2.md)
+to review and move useful knowledge manually. v1 tags and the `v1` branch
+remain available.
 
 ## Development
 
-repomemo is a single Bash script plus a `templates/` directory.
-
 ```bash
-# run tests
-bash tests/test_repomemo.sh
-
-# run the CLI directly from the repo without installing
-bash bin/repomemo --help
-
-# repomemo should pass its own check on this repository
-bash bin/repomemo check .
-bash bin/repomemo check --strict .
+pnpm install
+pnpm verify
+pnpm pack --pack-destination artifacts
+pnpm package:smoke artifacts/repomemo-2.0.0.tgz
 ```
 
-### Releases
-
-1. Update `VERSION` in `bin/repomemo` and the `version` / `url` lines in
-   `homebrew/repomemo.rb`.
-2. Tag the commit: `git tag v1.0.0 && git push --tags`. The release workflow
-   in `.github/workflows/release.yml` creates a GitHub release from the tag
-   and prints the SHA256 of the source tarball.
-3. Copy the SHA256 into `homebrew/repomemo.rb` and push the formula to
-   `SUN-1024/homebrew-repomemo` so `brew install repomemo` picks it up.
-
-## What this is *not*
-
-- Not a runtime, library, language-specific framework, or hook system.
-- Not a `settings.json` generator (those live in the consuming project).
-- Not opinionated about which AI agent is "primary" — every supported
-  adapter is equal.
+See [CONTRIBUTING.md](./CONTRIBUTING.md). CI covers macOS, Linux, Windows, and
+Node.js 22/24.
 
 ## License
 
-[MIT](./LICENSE)
+MIT

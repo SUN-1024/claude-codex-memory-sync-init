@@ -1,0 +1,115 @@
+[
+  {
+    "id": "codex",
+    "name": "Codex",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["codex"], "projectMarkers": [".codex"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://developers.openai.com/codex/guides/agents-md", "https://developers.openai.com/codex/skills"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "claude",
+    "name": "Claude Code",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["claude"], "projectMarkers": [".claude"] },
+    "rules": { "mode": "bridge", "path": "CLAUDE.md", "mechanism": "@AGENTS.md import" },
+    "skills": { "mode": "bridge", "path": ".claude/skills", "mechanism": "link to .agents/skills; manual fallback" },
+    "bridges": ["CLAUDE.md", ".claude/skills"],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://code.claude.com/docs/en/memory", "https://code.claude.com/docs/en/skills"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini CLI",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["gemini"], "projectMarkers": [".gemini"] },
+    "rules": { "mode": "bridge", "path": "GEMINI.md", "mechanism": "@AGENTS.md import" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": ["GEMINI.md"],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://geminicli.com/docs/cli/gemini-md/", "https://geminicli.com/docs/cli/skills/"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["opencode"], "projectMarkers": [".opencode"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://opencode.ai/docs/rules/", "https://opencode.ai/docs/skills/"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["cursor"], "projectMarkers": [".cursor"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://cursor.com/docs/rules", "https://cursor.com/docs/skills"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "copilot",
+    "name": "GitHub Copilot CLI",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["copilot"], "projectMarkers": [".github"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions", "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "zcode",
+    "name": "ZCode",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["zcode"], "projectMarkers": [".zcode"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "bridge", "path": ".zcode/skills", "mechanism": "link to .agents/skills; manual fallback" },
+    "bridges": [".zcode/skills"],
+    "evidence": {
+      "level": "official",
+      "docs": ["https://zcode.z.ai/en/docs/agents", "https://zcode.z.ai/en/docs/skill"],
+      "verifiedDate": "2026-09-01"
+    }
+  },
+  {
+    "id": "dsh",
+    "name": "DeepSeek Harness",
+    "platforms": ["darwin", "linux", "win32"],
+    "detection": { "commands": ["dsh"], "projectMarkers": [".dsh"] },
+    "rules": { "mode": "native", "path": "AGENTS.md" },
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
+    "evidence": {
+      "level": "source-verified",
+      "docs": ["https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/context/agent-instructions/README.md", "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/skills.md"],
+      "verifiedVersion": "0.1.2-alpha.3",
+      "verifiedDate": "2026-09-01"
+    }
+  }
+]

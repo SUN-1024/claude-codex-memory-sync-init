@@ -3,65 +3,47 @@ name: release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Create GitHub release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - name: Verify tag and package versions
+        shell: bash
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "stripped=${tag#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Run integration tests
-        run: bash tests/test_repomemo.sh
-
-      - name: Verify CLI version matches tag
+          expected="${GITHUB_REF_NAME#v}"
+          actual="$(node dist/cli.js --version | awk '{print $2}')"
+          package="$(node -p "require('./package.json').version")"
+          test "$actual" = "$expected"
+          test "$package" = "$expected"
+      - name: Build release assets
+        shell: bash
         run: |
-          script_version="$(bash bin/repomemo --version | awk '{print $2}')"
-          if [ "$script_version" != "${{ steps.version.outputs.stripped }}" ]; then
-            echo "VERSION mismatch: bin/repomemo says $script_version, tag is ${{ steps.version.outputs.stripped }}" >&2
-            exit 1
-          fi
-
-      - name: Download source tarball
-        run: |
-          curl -fsSL \
-            "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${{ steps.version.outputs.tag }}.tar.gz" \
-            -o "repomemo-${{ steps.version.outputs.stripped }}.tar.gz"
-
-      - name: Compute SHA256
-        id: sha
-        run: |
-          sum="$(shasum -a 256 "repomemo-${{ steps.version.outputs.stripped }}.tar.gz" | awk '{print $1}')"
-          echo "sha256=${sum}" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Tarball SHA256::${sum}"
-
-      - name: Create release
+          mkdir -p release
+          pnpm pack --pack-destination release
+          cp dist/cli.js release/repomemo.js
+          chmod 0755 release/repomemo.js
+          cd release
+          sha256sum repomemo.js repomemo-*.tgz > SHA256SUMS
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          body: |
-            repomemo ${{ steps.version.outputs.tag }}
-
-            Source tarball SHA256:
-            ```
-            ${{ steps.sha.outputs.sha256 }}
-            ```
-
-            Update `homebrew/repomemo.rb` (and the canonical formula in
-            `SUN-1024/homebrew-repomemo`) with the new `url` and `sha256`,
-            then `brew upgrade repomemo`.
+          generate_release_notes: true
           files: |
-            repomemo-${{ steps.version.outputs.stripped }}.tar.gz
+            release/repomemo.js
+            release/repomemo-*.tgz
+            release/SHA256SUMS

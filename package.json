@@ -1,8 +1,9 @@
 {
   "name": "repomemo",
-  "version": "1.3.0",
-  "description": "A small CLI that drops a shared, version-controlled AI project memory into any repository",
+  "version": "2.0.0",
+  "description": "A minimal, Git-neutral continuity layer for agent-native project directories",
   "license": "MIT",
+  "type": "module",
   "homepage": "https://github.com/SUN-1024/repomemo",
   "repository": {
     "type": "git",
@@ -12,39 +13,44 @@
     "url": "https://github.com/SUN-1024/repomemo/issues"
   },
   "keywords": [
-    "ai",
     "agents",
-    "claude",
-    "claude-code",
-    "codex",
-    "cursor",
-    "opencode",
-    "cli",
-    "scaffold",
-    "memory",
-    "project-memory",
+    "agent-native",
     "agents-md",
-    "claude-md"
+    "agent-skills",
+    "codex",
+    "claude-code",
+    "gemini-cli",
+    "opencode",
+    "cursor",
+    "copilot"
   ],
   "bin": {
-    "repomemo": "bin/repomemo"
+    "repomemo": "dist/cli.js"
   },
   "files": [
-    "bin/",
-    "templates/",
-    "LICENSE",
+    "dist/cli.js",
     "README.md",
-    "README.zh.md"
-  ],
-  "os": [
-    "darwin",
-    "linux"
+    "README.zh.md",
+    "MIGRATION-v1-v2.md",
+    "LICENSE"
   ],
   "engines": {
-    "node": ">=14"
+    "node": ">=22"
   },
+  "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "test": "bash tests/test_repomemo.sh",
-    "repomemo": "bash bin/repomemo"
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && node scripts/run-tests.mjs",
+    "matrix": "node scripts/render-matrix.mjs",
+    "matrix:check": "node scripts/render-matrix.mjs --check",
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run matrix:check",
+    "package:smoke": "node scripts/package-smoke.mjs",
+    "prepack": "pnpm run verify"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
   }
 }

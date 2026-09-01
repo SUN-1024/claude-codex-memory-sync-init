@@ -9,6 +9,15 @@
 .DS_Store
 Thumbs.db
 
+# Node / build / test artifacts
+node_modules/
+dist/
+.test-dist/
+artifacts/
+*.tgz
+
 # Local agent / tool state (consuming projects may add their own ignores)
 .claude/local/
 .claude/settings.local.json
+.claude/skills
+.zcode/skills
