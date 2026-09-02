@@ -1,8 +1,8 @@
 <!-- repomemo-state:v1 -->
 # Agent State
 
-- Status: active
-- Updated: 2026-09-02T05:04:28Z
+- Status: done
+- Updated: 2026-09-02T05:21:01Z
 - Last Harness: codex
 - Scope: .
 
@@ -67,6 +67,11 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Hardened China bootstrap delivery with full-download-before-execute semantics,
   jsDelivr/GitHub fallback, Node.js 24 LTS, x64 musl Linux support, absolute-path
   checks, checksum verification, and atomic wrapper replacement.
+- Published the RepoMemo 2.0 positioning infographic, synchronized bilingual
+  landing-page copy, and all four standard/China installer entrypoints to `main`.
+- Kept Claude Code's required `.claude/skills` compatibility link while removing
+  only ZCode's obsolete alias; runtime link behavior now derives from the Harness
+  registry so code and generated compatibility matrices cannot silently diverge.
 - Completed an independent, repository-external adversarial QA pass against a
   realistic mid-development TypeScript project, with no RepoMemo product-code changes.
 - Confirmed three release-significant defects: the current ZCode bridge creates
@@ -202,11 +207,19 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - A retained real 2.0.0-to-2.0.1 in-place upgrade removed the obsolete ZCode
   bridge, preserved source/Skill/state hashes, converged to `0 change(s)`, and
   passed doctor in the external QA bundle.
+- Final local verification passes 48/48 tests twice, including quoted and folded
+  YAML Skill frontmatter, followed by package, entrypoint, installer, audit, and
+  repository self-doctor checks.
+- Hosted CI run `33594097710` passes all six macOS, Ubuntu, and Windows jobs on
+  Node.js 22/24, including both PowerShell installer entrypoints.
+- Live GitHub README files and the infographic match the committed files. The
+  jsDelivr China entrypoint downloaded the standard installer, installed 2.0.1
+  from the verified package artifact into paths with spaces, initialized a
+  realistic in-progress project, and returned a healthy eight-Harness report.
 
 ## Next Action
 
-Commit and push the completed 2.0.1 implementation, installation scripts,
-infographic, and bilingual documentation. Require all six hosted macOS/Linux/
-Windows Node 22/24 jobs (including PowerShell installer smoke) to pass, then
-verify the live README and China delivery URL. Keep npm, GitHub Release, and
-Homebrew 2.0.1 publication behind explicit release authorization.
+The implementation goal is complete. Keep npm, GitHub Release, and Homebrew
+2.0.1 publication behind explicit release authorization; until then, public
+package-manager `latest` remains 2.0.0 even though `main` contains validated
+2.0.1 source and installers.
