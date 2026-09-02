@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: done
-- Updated: 2026-09-02T04:23:23Z
+- Updated: 2026-09-02T04:26:25Z
 - Last Harness: codex
 - Scope: .
 
@@ -138,9 +138,12 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - The simplified bilingual documentation passed 35/35 tests, typecheck, matrix
   synchronization, package creation, fresh-package smoke, `pnpm dlx`, `npx`, and
   whitespace validation; all four guides remain included in the 2.0.1 tarball.
+- Hosted CI run `33590636163` passed all six macOS, Linux, and Windows jobs on
+  Node 22/24, including verification, package smoke, `pnpm dlx`, and `npx`.
 
 ## Next Action
 
-Confirm the pushed `main` CI result. Publish a new immutable `v2.0.1` GitHub,
-npm, and Homebrew release only with explicit release authorization. Third-party
-Harness authentication/model/runtime issues remain outside RepoMemo's safe scope.
+Publish a new immutable `v2.0.1` GitHub, npm, and Homebrew release only with
+explicit release authorization. No code or documentation fix is pending;
+third-party Harness authentication/model/runtime issues remain outside
+RepoMemo's safe scope.
