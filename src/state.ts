@@ -60,6 +60,11 @@ function finding(code: string, severity: Finding["severity"], message: string): 
   return { code, severity, message, path: "AGENT_STATE.md", repairable: false };
 }
 
+function sectionBody(content: string, name: string): string | undefined {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(`^## ${escaped}[ \\t]*\\r?\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mu").exec(content)?.[1]?.trim();
+}
+
 export function validateState(content: string): Finding[] {
   const findings: Finding[] = [];
   const markerCount = content.split(STATE_MARKER).length - 1;
@@ -88,6 +93,18 @@ export function validateState(content: string): Finding[] {
   for (const section of STATE_SECTIONS) {
     const count = lineCount(content, `## ${section}`);
     if (count !== 1) findings.push(finding("STATE_SECTION_INVALID", "error", `Expected exactly one section: ${section}.`));
+  }
+
+  if (
+    status === "idle"
+    && sectionBody(content, "Goal") === "No active task."
+    && sectionBody(content, "Next Action") === "Start the next task from the current filesystem state."
+  ) {
+    findings.push(finding(
+      "STATE_BOOTSTRAP_PLACEHOLDER",
+      "warning",
+      "AGENT_STATE.md still contains the bootstrap placeholder; record current progress before switching Harnesses."
+    ));
   }
 
   const touched = /## Touched Paths\s*([\s\S]*?)(?=\n## |$)/u.exec(content)?.[1] ?? "";

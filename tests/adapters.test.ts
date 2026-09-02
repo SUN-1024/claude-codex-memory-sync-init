@@ -14,6 +14,9 @@ test("adapter registry exposes the fixed v2 launch set", () => {
     assert.match(adapter.evidence.verifiedDate, /^\d{4}-\d{2}-\d{2}$/u);
     if (adapter.evidence.level === "official-smoke") assert.ok(adapter.evidence.verifiedVersion);
   }
+  assert.deepEqual(getAdapter("codex")?.skills, { mode: "native", path: ".agents/skills" });
+  assert.deepEqual(getAdapter("opencode")?.skills, { mode: "native", path: ".agents/skills" });
+  assert.deepEqual(getAdapter("opencode")?.bridges, []);
 });
 
 test("adapter registry callers receive defensive clones", () => {

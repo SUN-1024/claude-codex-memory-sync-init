@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import packageJson from "../package.json" with { type: "json" };
 
 const cli = path.resolve("dist/cli.js");
 
@@ -34,8 +35,9 @@ function normalizeState(content: string): string {
 }
 
 test("version, help, and usage exits are stable", () => {
-  assert.equal(runCli(["--version"]).stdout.trim(), "repomemo 2.0.0");
+  assert.equal(runCli(["--version"]).stdout.trim(), `repomemo ${packageJson.version}`);
   assert.match(runCli(["--help"]).stdout, /repomemo init/u);
+  assert.match(runCli(["--help"]).stdout, /repomemo repair/u);
   const invalid = runCli(["unknown"]);
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /unknown command/u);
@@ -141,11 +143,11 @@ test("doctor warns about advisory instruction-like state without rewriting it", 
   assert.equal(await readFile(statePath, "utf8"), state);
 });
 
-test("doctor repair recreates missing managed bridges and links", async (t) => {
+test("repair recreates missing managed bridges and links", async (t) => {
   const { target } = await initialized(t);
   await unlink(path.join(target, ".claude", "skills"));
   await unlink(path.join(target, "CLAUDE.md"));
-  const result = runCli(["doctor", "--repair", "--target", target, "--json"]);
+  const result = runCli(["repair", "--target", target, "--json"]);
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.changed, true);
@@ -192,11 +194,87 @@ test("doctor harness filtering returns one adapter and skips unrelated bridges",
   assert.ok(!report.findings.some((finding: { harness?: string }) => finding.harness === "claude"));
 });
 
+test("OpenCode remains native when the unrelated Claude skills bridge is missing", async (t) => {
+  const { target } = await initialized(t);
+  await unlink(path.join(target, ".claude", "skills"));
+
+  const diagnosed = runCli(["doctor", "--target", target, "--harness", "opencode", "--json"]);
+  assert.equal(diagnosed.status, 0, diagnosed.stderr);
+  const diagnosedReport = JSON.parse(diagnosed.stdout);
+  assert.deepEqual(diagnosedReport.support[0].skills, {
+    mode: "native",
+    path: ".agents/skills"
+  });
+  assert.ok(!diagnosedReport.findings.some((finding: { code: string }) => finding.code.startsWith("SKILLS_LINK_")));
+  assert.ok(diagnosedReport.findings.some((finding: { code: string }) => finding.code === "OPENCODE_NON_GIT_SKILLS_LIMITATION"));
+});
+
+test("OpenCode doctor distinguishes non-Git and Git-root Skill discovery", async (t) => {
+  const plain = await initialized(t, "plain");
+  const plainReport = JSON.parse(runCli(["doctor", "--target", plain.target, "--harness", "opencode", "--json"]).stdout);
+  assert.ok(plainReport.findings.some((finding: { code: string }) => finding.code === "OPENCODE_NON_GIT_SKILLS_LIMITATION"));
+
+  const git = await initialized(t, "git");
+  await mkdir(path.join(git.target, ".git"));
+  const gitReport = JSON.parse(runCli(["doctor", "--target", git.target, "--harness", "opencode", "--json"]).stdout);
+  assert.ok(!gitReport.findings.some((finding: { code: string }) => finding.code === "OPENCODE_NON_GIT_SKILLS_LIMITATION"));
+});
+
+test("an in-progress project can adopt RepoMemo without losing existing files", async (t) => {
+  const { target } = await fixture(t, "existing project");
+  const sourcePath = path.join(target, "app.ts");
+  const source = "export const progress = 'halfway';\n";
+  await writeFile(sourcePath, source, "utf8");
+  await writeFile(path.join(target, "AGENTS.md"), "# Existing project rules\n\nKeep the API stable.\n", "utf8");
+
+  const adopted = runCli(["init", "--target", target]);
+  assert.equal(adopted.status, 0, adopted.stderr);
+  assert.equal(await readFile(sourcePath, "utf8"), source);
+  assert.match(await readFile(path.join(target, "AGENTS.md"), "utf8"), /Keep the API stable/u);
+
+  const report = JSON.parse(runCli(["doctor", "--target", target, "--json"]).stdout);
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "STATE_BOOTSTRAP_PLACEHOLDER"));
+});
+
+test("a managed v2 project upgrades in place and remains idempotent", async (t) => {
+  const { target } = await initialized(t);
+  const agentsPath = path.join(target, "AGENTS.md");
+  const statePath = path.join(target, "AGENT_STATE.md");
+  const skillPath = path.join(target, ".agents", "skills", "upgrade-demo", "SKILL.md");
+  await mkdir(path.dirname(skillPath), { recursive: true });
+  const state = (await readFile(statePath, "utf8"))
+    .replace("Status: idle", "Status: active")
+    .replace("No active task.", "Continue the existing implementation.")
+    .replace("Start the next task from the current filesystem state.", "Run the next integration case.");
+  const skill = "---\nname: upgrade-demo\ndescription: Preserve this project skill during upgrades.\n---\n\n# Upgrade demo\n";
+  const driftedAgents = `# User-owned rules\n\nKeep this paragraph.\n\n${(await readFile(agentsPath, "utf8")).replace(
+    "Before yielding after meaningful work, update `AGENT_STATE.md`.",
+    "Old RepoMemo managed wording."
+  )}`;
+  await writeFile(statePath, state, "utf8");
+  await writeFile(skillPath, skill, "utf8");
+  await writeFile(agentsPath, driftedAgents, "utf8");
+
+  const upgraded = runCli(["init", "--target", target]);
+  assert.equal(upgraded.status, 0, upgraded.stderr);
+  assert.match(upgraded.stdout, /UPDATE AGENTS\.md/u);
+  const upgradedAgents = await readFile(agentsPath, "utf8");
+  assert.match(upgradedAgents, /Keep this paragraph/u);
+  assert.match(upgradedAgents, /Before yielding after meaningful work/u);
+  assert.doesNotMatch(upgradedAgents, /Old RepoMemo managed wording/u);
+  assert.equal(await readFile(statePath, "utf8"), state);
+  assert.equal(await readFile(skillPath, "utf8"), skill);
+
+  const repeated = runCli(["init", "--target", target]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.match(repeated.stdout, /0 change\(s\)/u);
+});
+
 test("missing target is usage error and missing state is never repaired", async (t) => {
   const { root, target } = await initialized(t);
   assert.equal(runCli(["doctor", "--target", path.join(root, "missing")]).status, 2);
   await unlink(path.join(target, "AGENT_STATE.md"));
-  const result = runCli(["doctor", "--repair", "--target", target]);
+  const result = runCli(["repair", "--target", target]);
   assert.equal(result.status, 1);
   await assert.rejects(readFile(path.join(target, "AGENT_STATE.md"), "utf8"));
 });
@@ -218,9 +296,18 @@ test("doctor is byte-read-only and repair never rewrites malformed state", async
   const statePath = path.join(target, "AGENT_STATE.md");
   const malformed = (await readFile(statePath, "utf8")).replace("<!-- repomemo-state:v1 -->", "<!-- malformed-state -->");
   await writeFile(statePath, malformed);
-  const repair = runCli(["doctor", "--repair", "--target", target, "--json"]);
+  const repair = runCli(["repair", "--target", target, "--json"]);
   assert.equal(repair.status, 1);
   assert.equal(await readFile(statePath, "utf8"), malformed);
+});
+
+test("legacy doctor --repair remains a backward-compatible alias", async (t) => {
+  const { target } = await initialized(t);
+  await unlink(path.join(target, ".zcode", "skills"));
+  const legacy = runCli(["doctor", "--repair", "--target", target, "--harness", "zcode", "--json"]);
+  assert.equal(legacy.status, 0, legacy.stderr);
+  assert.equal(JSON.parse(legacy.stdout).changed, true);
+  assert.equal(await readlink(path.join(target, ".zcode", "skills")), "../.agents/skills");
 });
 
 test("real vendor directories and linked contract parents fail closed", async (t) => {

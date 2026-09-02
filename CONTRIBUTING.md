@@ -31,7 +31,8 @@ Git, curl, a network API, or a Skill script.
 ```bash
 pnpm verify
 pnpm pack --pack-destination artifacts
-pnpm package:smoke artifacts/repomemo-2.0.0.tgz
+pnpm package:smoke
+pnpm entrypoint:smoke
 node dist/cli.js doctor --target . --json
 ```
 

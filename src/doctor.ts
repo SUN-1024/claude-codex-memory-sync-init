@@ -127,6 +127,16 @@ async function inspectAncestors(target: string, findings: Finding[]): Promise<vo
   }
 }
 
+async function hasGitContext(target: string): Promise<boolean> {
+  let current = target;
+  while (true) {
+    if (await pathKind(path.join(current, ".git")) !== "missing") return true;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
 async function inspectNestedAgents(target: string, findings: Finding[]): Promise<void> {
   const ignored = new Set([".git", "node_modules", "dist", ".test-dist"]);
   const queue = [target];
@@ -172,6 +182,17 @@ async function inspectProject(target: string, harness: string | undefined): Prom
     if (inspection.kind === "missing") findings.push(item("SKILLS_LINK_MANUAL_FALLBACK", "warning", `${spec.link} is missing; ${spec.harness} must read .agents/skills manually.`, true, spec.link, spec.harness));
     else if (inspection.kind === "conflict") findings.push(item("SKILLS_LINK_CONFLICT", "error", inspection.reason, false, spec.link, spec.harness));
     else if (inspection.kind === "broken") findings.push(item("SKILLS_LINK_BROKEN", "error", `${spec.link} points to the canonical path, but .agents/skills is unavailable.`, false, spec.link, spec.harness));
+  }
+
+  if ((!harness || harness === "opencode") && !await hasGitContext(target)) {
+    findings.push(item(
+      "OPENCODE_NON_GIT_SKILLS_LIMITATION",
+      "warning",
+      "Tested OpenCode versions may not discover project Skills outside a Git worktree; RepoMemo will not initialize Git, so smoke-test Skill discovery in the installed OpenCode runtime.",
+      false,
+      ".agents/skills",
+      "opencode"
+    ));
   }
 
   if (await pathKind(path.join(target, ".git")) !== "missing") findings.push(item("TARGET_GIT_PRESENT", "info", "A .git entry is present; RepoMemo does not read or modify it.", false, ".git"));

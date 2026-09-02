@@ -6,7 +6,8 @@ agent governance and continuity contract without using Git or the network.
 ## Development rules
 
 - Require Node.js 22 or newer and use pnpm for repository tasks.
-- Keep public commands limited to `init`, `doctor`, and `doctor --repair`.
+- Keep public commands limited to `init`, `doctor`, and `repair`; preserve
+  `doctor --repair` only as a backward-compatible alias.
 - Never add Git, network, Skill execution, MCP, hook, permission, command, or
   private-session conversion behavior to the CLI.
 - Treat `data/harnesses.json` as the single source for runtime support data and

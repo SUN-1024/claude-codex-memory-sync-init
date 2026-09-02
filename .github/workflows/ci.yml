@@ -29,6 +29,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
       - run: pnpm pack --pack-destination artifacts
-      - run: pnpm package:smoke artifacts/repomemo-2.0.0.tgz
-      - run: pnpm dlx "${{ github.workspace }}/artifacts/repomemo-2.0.0.tgz" --version
-      - run: npx --yes --package "${{ github.workspace }}/artifacts/repomemo-2.0.0.tgz" repomemo --version
+      - run: pnpm package:smoke
+      - run: pnpm entrypoint:smoke

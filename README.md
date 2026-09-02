@@ -2,90 +2,149 @@
 
 > **Languages:** **English** · [简体中文](./README.zh.md)
 
-**One project. Any coding agent. No switching ceremony.**
+**Initialize once. Keep working. Switch Agent Harnesses without conversion.**
 
-RepoMemo is a minimal, Git-neutral continuity layer for agent-native project
-directories. It bootstraps one portable file contract; after that, switch
-between coding Harnesses directly without running convert, sync, generate,
-export, or handoff commands.
+RepoMemo makes a new or already-in-progress project **Agent Native** and
+**Harness Native**. It keeps durable rules, current progress, and reusable
+Skills in the project itself, so Codex, Claude Code, Gemini CLI, OpenCode,
+Cursor, Copilot CLI, ZCode, and DeepSeek Harness can work from the same sources.
 
-## Quick start
+## Start in 30 seconds
+
+Run this once inside any new or existing project:
 
 ```bash
 cd my-project
 npx repomemo@latest init
-
-# Switch directly after the one-time bootstrap
-codex
-claude
-gemini
-opencode
 ```
 
-`npx @latest` may need the network to obtain RepoMemo. Once the CLI is locally
-available, `init` and `doctor` make no network calls.
+Then open the same directory with any supported Harness:
 
-## The contract
+```bash
+codex
+# or: claude, gemini, opencode, cursor, copilot, zcode, dsh
+```
+
+That is the whole switching workflow. There is no RepoMemo `switch`, `sync`,
+`convert`, `export`, or `handoff` command.
+
+## Already halfway through a project?
+
+Run the same `init` command in the existing project directory. RepoMemo keeps
+the source tree, configuration, user-written rules, current state, and existing
+Skills. It adds only the shared contract and required compatibility bridges.
+
+Before switching, ask the current agent to record the real progress:
+
+```text
+Read AGENTS.md and update AGENT_STATE.md with the current goal,
+completed work, validation, changed paths, and next action.
+```
+
+The next Harness opens the same directory, reads `AGENTS.md` and
+`AGENT_STATE.md`, and continues. A Harness that was already running may need to
+reload the project files or start a new session. Private chat history is not
+portable; important context must be written into the project.
+
+## The idea
+
+- **Agent Harness** is the runtime or interface hosting the coding agent, such
+  as Codex, Claude Code, Gemini CLI, or OpenCode.
+- **Agent Native** means the project is a first-class home for agent-readable
+  rules, state, and Skills. The project—not a private chat—is the durable unit.
+- **Harness Native** means each Harness uses paths and formats it already
+  supports. RepoMemo prefers native discovery and adds only a tiny bridge when
+  a Harness requires one.
+
+The principle is simple: **the project owns continuity; Harnesses are
+replaceable entry points.** RepoMemo is not an agent launcher, wrapper, session
+manager, or new Harness.
+
+## Only three commands
+
+```bash
+# Add or safely upgrade RepoMemo in this project
+repomemo init
+
+# Read-only diagnosis
+repomemo doctor
+
+# Repair only safe RepoMemo-managed bridges and links
+repomemo repair
+```
+
+Useful forms:
+
+```bash
+repomemo init --target path/to/project
+repomemo doctor --harness claude
+repomemo doctor --json
+repomemo repair --harness zcode
+```
+
+`doctor --repair` remains a compatibility alias for older scripts. A healthy
+`doctor` report confirms the on-disk contract; it does not launch, authenticate,
+upgrade, or approve workspace trust for a third-party Harness.
+
+## Three shared sources
 
 ```text
 my-project/
-├── AGENTS.md              # permanent governance; canonical rules
-├── AGENT_STATE.md         # advisory current-task and handoff data
-├── .agents/
-│   └── skills/            # canonical Agent Skills
-├── CLAUDE.md              # thin @AGENTS.md bridge
-├── GEMINI.md              # thin @AGENTS.md bridge
-├── .claude/skills         # link to .agents/skills when available
-└── .zcode/skills          # link to .agents/skills when available
+├── AGENTS.md              # durable project rules
+├── AGENT_STATE.md         # current goal, progress, tests, and next action
+├── .agents/skills/        # reusable Agent Skills
+├── CLAUDE.md              # thin bridge when required
+├── GEMINI.md              # thin bridge when required
+├── .claude/skills         # link when supported
+└── .zcode/skills          # link when supported
 ```
 
-The three planes are intentionally separate:
+You maintain the first three sources. RepoMemo owns only clearly marked blocks
+and safe compatibility links. Text outside managed markers is preserved;
+malformed or ambiguous markers fail closed instead of being overwritten.
 
-- **Governance:** `AGENTS.md` and `.agents/skills`.
-- **Continuity:** `AGENT_STATE.md`.
-- **Compatibility:** tiny imports and in-project links only where required.
+## Install
 
-RepoMemo manages only explicit HTML-comment blocks. User-authored text outside
-those blocks is preserved. Ambiguous, duplicate, or malformed markers fail
-closed instead of being guessed or overwritten.
-
-## Commands
+The recommended path needs no global installation:
 
 ```bash
-repomemo init [--target DIR] [--dry-run]
-repomemo doctor [--target DIR] [--harness ID] [--json]
-repomemo doctor --repair [--target DIR] [--harness ID] [--json]
+npx repomemo@latest init
 ```
 
-- `init` uses exactly the supplied directory or current directory. It never
-  searches for a Git root and requires the target directory to exist.
-- `doctor` is read-only by default. It checks the contract, state schema,
-  bridges, links, nested/ancestor instructions, and compatibility evidence.
-- `doctor --repair` repairs only canonical managed blocks and safe links. It
-  never rewrites `AGENT_STATE.md` or foreign content.
+Optional permanent installation:
 
-RepoMemo never runs Git, initializes a repository, edits `.gitignore`, invokes
-the network, or executes scripts found in Skills.
+```bash
+# npm
+npm install --global repomemo
 
-## State is data, not authority
+# Homebrew
+brew tap SUN-1024/repomemo
+brew install repomemo
+```
 
-`AGENT_STATE.md` has a fixed Markdown schema with `idle`, `active`, `blocked`,
-or `done` status plus goal, completed work, decisions, failures, touched paths,
-validation, and next action. Paths are project-relative.
+RepoMemo requires Node.js 22 or newer and has zero runtime dependencies. The
+first `npx` download needs network access; the installed CLI performs `init`,
+`doctor`, and `repair` locally without Git or network calls.
 
-The current filesystem and authoritative project documentation win over stale
-state. `AGENTS.md` wins over state on governance conflicts. A single writer per
-working directory is an operating assumption, not a lock or concurrency
-guarantee.
+## Upgrade without rebuilding the project
+
+Run the latest `init` in the same working copy:
+
+```bash
+cd existing-project
+npx repomemo@latest init
+npx repomemo@latest doctor
+```
+
+Compatible upgrades update only RepoMemo-managed blocks and missing bridges.
+They preserve source files, user-authored text, `AGENT_STATE.md`, and
+`.agents/skills`. Repeating `init` should report `0 change(s)`.
 
 ## Harness compatibility
 
-Compatibility and evidence are separate. `native` means the Harness reads the
-canonical path itself; `bridge` means a pointer/import/link is required;
-`manual` means the Harness must follow the `AGENTS.md` instruction; and
-`unsupported` means RepoMemo has no safe route. Evidence stays `official` or
-`source-verified` until a real versioned Harness smoke test is recorded—no
-unverified green checks.
+`native` means direct Harness support. `bridge` means RepoMemo adds a minimal
+import or local link. The registry and both README matrices are generated from
+[`data/harnesses.json`](./data/harnesses.json).
 
 <!-- repomemo:matrix:start -->
 | Harness | Rules | Skills | Evidence |
@@ -100,42 +159,22 @@ unverified green checks.
 | DeepSeek Harness | native | native | source-verified |
 <!-- repomemo:matrix:end -->
 
-The registry records official documentation, verification date, paths, and
-mechanisms. RepoMemo does not convert MCP, hooks, permissions, commands, or
-Harness-specific configuration.
+RepoMemo itself is Git-neutral. Some Harness versions may use `.git` or other
+markers to choose a project root. In live tests, OpenCode discovered project
+Skills natively in a Git worktree but not in a plain directory;
+`doctor --harness opencode` reports that limitation. RepoMemo never runs
+`git init` on the user's behalf.
 
-## Git-neutral, not root-neutral
+## What RepoMemo deliberately does not do
 
-RepoMemo behaves the same in a plain directory and a Git working tree and never
-calls Git. Individual Harnesses may still use `.git` or other markers to choose
-their project root. `doctor` reports nearby root/instruction files so that this
-difference is visible rather than hidden.
+- It does not copy or convert private chat sessions.
+- It does not launch, install, authenticate, or configure Harnesses.
+- It does not convert MCP, hooks, permissions, or Harness-private settings.
+- It does not run Git, edit `.gitignore`, use the network, or execute Skill scripts.
+- It never invents project progress or silently replace foreign content.
 
-Bootstrap each working copy once. Symlinks and Windows junctions are local
-filesystem details and should not be treated as portable session state.
-
-## Install
-
-```bash
-# No global install
-npx repomemo@latest init
-
-# Global npm install
-npm install --global repomemo
-
-# Homebrew
-brew tap SUN-1024/repomemo
-brew install repomemo
-```
-
-Node.js 22 or newer is required. RepoMemo has zero runtime dependencies.
-
-## v1 users
-
-Version 2 is a deliberate clean break. It does not automatically transform
-`.ai/` memory into the new contract. Follow [MIGRATION-v1-v2.md](./MIGRATION-v1-v2.md)
-to review and move useful knowledge manually. v1 tags and the `v1` branch
-remain available.
+For the shortest walkthrough, see [RepoMemo in one minute](./QUICKSTART.md).
+Version 1 users should read [MIGRATION-v1-v2.md](./MIGRATION-v1-v2.md).
 
 ## Development
 
@@ -143,7 +182,8 @@ remain available.
 pnpm install
 pnpm verify
 pnpm pack --pack-destination artifacts
-pnpm package:smoke artifacts/repomemo-2.0.0.tgz
+pnpm package:smoke
+pnpm entrypoint:smoke
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md). CI covers macOS, Linux, Windows, and

@@ -3,7 +3,17 @@ import test from "node:test";
 import { createState, validateState } from "../src/state.js";
 
 test("generated state matches schema", () => {
-  assert.deepEqual(validateState(createState(new Date("2026-09-01T00:00:00.000Z"))), []);
+  const findings = validateState(createState(new Date("2026-09-01T00:00:00.000Z")));
+  assert.deepEqual(findings.map((entry) => entry.code), ["STATE_BOOTSTRAP_PLACEHOLDER"]);
+  assert.equal(findings[0]?.severity, "warning");
+});
+
+test("populated in-progress state clears the bootstrap warning", () => {
+  const state = createState()
+    .replace("Status: idle", "Status: active")
+    .replace("No active task.", "Implement the current feature.")
+    .replace("Start the next task from the current filesystem state.", "Continue from the verified test failure.");
+  assert.ok(!validateState(state).some((entry) => entry.code === "STATE_BOOTSTRAP_PLACEHOLDER"));
 });
 
 test("state rejects invalid status, timestamp, and escaping paths", () => {

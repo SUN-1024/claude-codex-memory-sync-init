@@ -16,6 +16,10 @@ test("link creation failure becomes an honest manual fallback", async (t) => {
   });
 
   assert.equal(result.findings.filter((finding) => finding.code === "SKILLS_LINK_MANUAL_FALLBACK").length, 2);
+  assert.deepEqual(
+    result.findings.map((finding) => finding.harness),
+    ["claude", "zcode"]
+  );
   assert.ok(result.findings.every((finding) => finding.message.includes("manual AGENTS.md fallback")));
   assert.equal(result.changes.some((change) => change.startsWith("LINK ")), false);
   assert.match(await readFile(path.join(target, "AGENTS.md"), "utf8"), /repomemo:start/u);

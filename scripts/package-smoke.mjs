@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readlink, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -9,11 +9,13 @@ function run(command, args, options = {}) {
   return result;
 }
 
+const expectedVersion = JSON.parse(await readFile("package.json", "utf8")).version;
 let tarball = process.argv[2];
 if (!tarball) {
-  const candidates = (await readdir("artifacts")).filter((name) => name.endsWith(".tgz"));
-  if (candidates.length !== 1) throw new Error("pass exactly one package tarball or place one .tgz in artifacts/");
-  tarball = path.resolve("artifacts", candidates[0]);
+  const expectedName = `repomemo-${expectedVersion}.tgz`;
+  const candidates = await readdir("artifacts");
+  if (!candidates.includes(expectedName)) throw new Error(`pass a package tarball or place ${expectedName} in artifacts/`);
+  tarball = path.resolve("artifacts", expectedName);
 } else tarball = path.resolve(tarball);
 
 const packageManager = process.env.npm_execpath;
@@ -24,13 +26,17 @@ try {
   run(process.execPath, [packageManager, "add", "--dir", temporary, "--ignore-scripts", tarball]);
   const cli = path.join(temporary, "node_modules", "repomemo", "dist", "cli.js");
   const version = run(process.execPath, [packageManager, "--dir", temporary, "exec", "repomemo", "--version"]);
-  if (!version.stdout.includes("repomemo 2.0.0")) throw new Error("installed package reported the wrong version");
+  if (version.stdout.trim() !== `repomemo ${expectedVersion}`) throw new Error("installed package reported the wrong version");
   const project = path.join(temporary, "project with spaces");
   await mkdir(project);
   run(process.execPath, [cli, "init", "--target", project]);
   const doctor = run(process.execPath, [cli, "doctor", "--target", project, "--json"]);
   const report = JSON.parse(doctor.stdout);
   if (!report.healthy) throw new Error("installed package doctor did not pass");
+  await unlink(path.join(project, ".zcode", "skills"));
+  const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "zcode", "--json"]);
+  if (!JSON.parse(repair.stdout).changed) throw new Error("installed package repair did not report a change");
+  if (await readlink(path.join(project, ".zcode", "skills")) === "") throw new Error("installed package repair did not restore the skills link");
   const agents = await readFile(path.join(project, "AGENTS.md"), "utf8");
   if (!agents.includes("repomemo:start")) throw new Error("installed package did not initialize AGENTS.md");
   process.stdout.write(`package smoke passed: ${tarball}\n`);

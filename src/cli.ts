@@ -11,15 +11,16 @@ const HELP = `repomemo ${VERSION} — Git-neutral continuity for agent-native pr
 USAGE
   repomemo init [--target DIR] [--dry-run]
   repomemo doctor [--target DIR] [--harness ID] [--json]
-  repomemo doctor --repair [--target DIR] [--harness ID] [--json]
+  repomemo repair [--target DIR] [--harness ID] [--json]
   repomemo --help
   repomemo --version
 
 COMMANDS
   init     Bootstrap the portable repository contract. Never searches for a Git root.
-  doctor   Read-only validation by default; --repair fixes only safe managed bridges and links.
+  doctor   Read-only validation of the portable file contract.
+  repair   Fix only safe managed bridges and links. Legacy alias: doctor --repair.
 
-RepoMemo never runs Git, accesses the network, or executes Skill scripts.
+RepoMemo never runs Git, launches Harnesses, accesses the network, or executes Skill scripts.
 `;
 
 interface CommonFlags {
@@ -77,9 +78,10 @@ async function main(): Promise<number> {
     process.stdout.write(`repomemo ${VERSION}\n`);
     return 0;
   }
-  if (command !== "init" && command !== "doctor") throw new CliUsageError(`unknown command: ${command}`);
+  if (command !== "init" && command !== "doctor" && command !== "repair") throw new CliUsageError(`unknown command: ${command}`);
 
-  const flags = parseFlags(args, command);
+  const flags = parseFlags(args, command === "init" ? "init" : "doctor");
+  if (command === "repair") flags.repair = true;
   const target = await resolveTarget(flags.target);
   if (command === "init") {
     const result = await runInit(target, flags.dryRun);

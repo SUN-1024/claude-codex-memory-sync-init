@@ -1,7 +1,7 @@
 {
   "name": "repomemo",
-  "version": "2.0.0",
-  "description": "A minimal, Git-neutral continuity layer for agent-native project directories",
+  "version": "2.0.1",
+  "description": "Agent Native, Harness Native continuity: initialize once and switch coding agents without conversion",
   "license": "MIT",
   "type": "module",
   "homepage": "https://github.com/SUN-1024/repomemo",
@@ -31,6 +31,8 @@
     "dist/cli.js",
     "README.md",
     "README.zh.md",
+    "QUICKSTART.md",
+    "QUICKSTART.zh.md",
     "MIGRATION-v1-v2.md",
     "LICENSE"
   ],
@@ -46,6 +48,7 @@
     "matrix:check": "node scripts/render-matrix.mjs --check",
     "verify": "pnpm run typecheck && pnpm run test && pnpm run matrix:check",
     "package:smoke": "node scripts/package-smoke.mjs",
+    "entrypoint:smoke": "node scripts/entrypoint-smoke.mjs",
     "prepack": "pnpm run verify"
   },
   "devDependencies": {
