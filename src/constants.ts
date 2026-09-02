@@ -42,5 +42,6 @@ export const LINK_SPECS: readonly LinkSpec[] = getAdapters()
   .map((adapter) => ({ harness: adapter.id, link: adapter.skills.path ?? "", target: ".agents/skills" }));
 
 export const DEPRECATED_LINK_SPECS: readonly LinkSpec[] = [
-  { harness: "zcode", link: ".zcode/skills", target: ".agents/skills" }
+  { harness: "claude", consumers: ["claude", "opencode", "cursor", "copilot"], link: ".claude/skills", target: ".agents/skills" },
+  { harness: "zcode", consumers: ["zcode"], link: ".zcode/skills", target: ".agents/skills" }
 ];

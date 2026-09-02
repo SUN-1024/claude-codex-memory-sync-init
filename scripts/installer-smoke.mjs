@@ -25,7 +25,7 @@ async function verifyInstalled(wrapper, project, shell) {
   if (version !== `repomemo ${packageJson.version}`) throw new Error(`installer reported an unexpected version: ${version}`);
   await mkdir(project, { recursive: true });
   run(wrapper, ["init", "--target", project], options);
-  await unlink(path.join(project, ".claude", "skills"));
+  await unlink(path.join(project, "CLAUDE.md"));
   const repair = JSON.parse(run(wrapper, ["repair", "--target", project, "--harness", "claude", "--json"], options));
   if (!repair.changed || !repair.healthy) throw new Error("installed repair command did not restore a healthy contract");
   const doctor = JSON.parse(run(wrapper, ["doctor", "--target", project, "--json"], options));

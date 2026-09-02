@@ -5,22 +5,17 @@ import path from "node:path";
 import test from "node:test";
 import { runInit } from "../src/init.js";
 
-test("link creation failure becomes an honest manual fallback", async (t) => {
+test("init never creates duplicate Harness Skill aliases", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "repomemo-link-fallback-"));
   t.after(async () => { await rm(root, { recursive: true, force: true }); });
   const target = path.join(root, "project");
   await mkdir(target);
 
-  const result = await runInit(target, false, {
-    createLink: async () => { throw new Error("simulated link denial"); }
-  });
+  let createCalls = 0;
+  const result = await runInit(target, false, { createLink: async () => { createCalls += 1; } });
 
-  assert.equal(result.findings.filter((finding) => finding.code === "SKILLS_LINK_MANUAL_FALLBACK").length, 1);
-  assert.deepEqual(
-    result.findings.map((finding) => finding.harness),
-    ["claude"]
-  );
-  assert.ok(result.findings.every((finding) => finding.message.includes("read .agents/skills manually")));
+  assert.equal(createCalls, 0);
+  assert.equal(result.findings.length, 0);
   assert.equal(result.changes.some((change) => change.startsWith("LINK ")), false);
   assert.match(await readFile(path.join(target, "AGENTS.md"), "utf8"), /repomemo:start/u);
   await assert.rejects(readlink(path.join(target, ".claude", "skills")));

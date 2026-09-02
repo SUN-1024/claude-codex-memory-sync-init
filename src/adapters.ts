@@ -38,6 +38,9 @@ function validateAdapter(value: unknown): HarnessAdapter {
     || !/^\d{4}-\d{2}-\d{2}$/u.test(evidence.verifiedDate)
   ) throw new Error(`invalid harness evidence: ${item.id}`);
   if (evidence.level === "official-smoke" && typeof evidence.verifiedVersion !== "string") throw new Error(`smoke-tested harness needs a version: ${item.id}`);
+  if (evidence.minimumVersion !== undefined && (typeof evidence.minimumVersion !== "string" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(evidence.minimumVersion))) {
+    throw new Error(`invalid minimum harness version: ${item.id}`);
+  }
   return value as HarnessAdapter;
 }
 

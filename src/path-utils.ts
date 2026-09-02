@@ -27,8 +27,15 @@ export async function resolveTarget(input: string | undefined): Promise<string> 
   if (path.dirname(resolved) === resolved) throw new CliUsageError(`refusing to use filesystem root as target: ${resolved}`);
   const home = await realpath(os.homedir()).catch(() => path.resolve(os.homedir()));
   if (resolved === home) throw new CliUsageError(`refusing to use the user home directory as a project target: ${resolved}`);
-  const temporaryRoot = await realpath(os.tmpdir()).catch(() => path.resolve(os.tmpdir()));
-  if (resolved === temporaryRoot) throw new CliUsageError(`refusing to use the operating-system temporary root as a project target: ${resolved}`);
+  const temporaryCandidates = new Set([os.tmpdir()]);
+  if (process.platform !== "win32") {
+    temporaryCandidates.add("/tmp");
+    temporaryCandidates.add("/var/tmp");
+  }
+  for (const candidate of temporaryCandidates) {
+    const temporaryRoot = await realpath(candidate).catch(() => path.resolve(candidate));
+    if (resolved === temporaryRoot) throw new CliUsageError(`refusing to use a shared or operating-system temporary root as a project target: ${resolved}`);
+  }
   return resolved;
 }
 
@@ -76,9 +83,26 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const existing = parseLockOwner(await readFile(lockPath, "utf8").catch(() => ""));
-      const stale = existing && (!processIsAlive(existing.pid) || Date.now() - existing.createdAt > 300_000);
+      const lockDetails = await stat(lockPath).catch(() => undefined);
+      const age = lockDetails ? Date.now() - lockDetails.mtimeMs : 0;
+      const stale = existing
+        ? !processIsAlive(existing.pid)
+        : age > 5_000;
       if (stale) {
-        await unlink(lockPath).catch(() => undefined);
+        if (!lockDetails) continue;
+        const quarantine = `${lockPath}.stale-${randomUUID()}`;
+        try {
+          await rename(lockPath, quarantine);
+        } catch (renameError) {
+          if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw renameError;
+        }
+        const moved = await stat(quarantine).catch(() => undefined);
+        if (!moved || moved.dev !== lockDetails.dev || moved.ino !== lockDetails.ino) {
+          if (await pathKind(lockPath) === "missing") await rename(quarantine, lockPath).catch(() => undefined);
+          throw new Error(`RepoMemo lock changed while stale ownership was being reclaimed for ${target}`);
+        }
+        await unlink(quarantine);
         continue;
       }
       if (Date.now() >= deadline) throw new Error(`timed out waiting for another RepoMemo init on ${target}`);

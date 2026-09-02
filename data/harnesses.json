@@ -20,8 +20,8 @@
     "platforms": ["darwin", "linux", "win32"],
     "detection": { "commands": ["claude"], "projectMarkers": [".claude"] },
     "rules": { "mode": "bridge", "path": "CLAUDE.md", "mechanism": "@AGENTS.md import" },
-    "skills": { "mode": "bridge", "path": ".claude/skills", "mechanism": "link to .agents/skills; repairable fallback" },
-    "bridges": ["CLAUDE.md", ".claude/skills"],
+    "skills": { "mode": "manual", "path": ".agents/skills", "mechanism": "AGENTS.md instruction imported through CLAUDE.md; alias omitted to prevent duplicate discovery in multi-path Harnesses" },
+    "bridges": ["CLAUDE.md"],
     "evidence": {
       "level": "official",
       "docs": ["https://code.claude.com/docs/en/memory", "https://code.claude.com/docs/en/skills"],
@@ -38,8 +38,9 @@
     "bridges": ["GEMINI.md"],
     "evidence": {
       "level": "official",
-      "docs": ["https://geminicli.com/docs/cli/gemini-md/", "https://geminicli.com/docs/cli/skills/"],
-      "verifiedDate": "2026-09-01"
+      "docs": ["https://geminicli.com/docs/cli/gemini-md/", "https://geminicli.com/docs/cli/skills/", "https://github.com/google-gemini/gemini-cli/blob/main/docs/changelogs/index.md"],
+      "minimumVersion": "0.26.0",
+      "verifiedDate": "2026-09-02"
     }
   },
   {
@@ -48,12 +49,12 @@
     "platforms": ["darwin", "linux", "win32"],
     "detection": { "commands": ["opencode"], "projectMarkers": [".opencode"] },
     "rules": { "mode": "native", "path": "AGENTS.md" },
-    "skills": { "mode": "native", "path": ".agents/skills" },
+    "skills": { "mode": "manual", "path": ".agents/skills", "mechanism": "AGENTS.md instruction; tested 1.17.7 did not catalog the project path without a duplicate compatibility alias" },
     "bridges": [],
     "evidence": {
-      "level": "official-smoke",
+      "level": "provisional",
       "docs": ["https://opencode.ai/docs/rules/", "https://opencode.ai/docs/skills/"],
-      "verifiedVersion": "1.17.7 (catalog)",
+      "verifiedVersion": "1.17.7 catalog limitation",
       "verifiedDate": "2026-09-02"
     }
   },

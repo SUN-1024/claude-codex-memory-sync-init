@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, readdir, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -33,13 +33,10 @@ try {
   const doctor = run(process.execPath, [cli, "doctor", "--target", project, "--json"]);
   const report = JSON.parse(doctor.stdout);
   if (!report.healthy) throw new Error("installed package doctor did not pass");
-  await unlink(path.join(project, ".claude", "skills"));
+  await unlink(path.join(project, "CLAUDE.md"));
   const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "claude", "--json"]);
   if (!JSON.parse(repair.stdout).changed) throw new Error("installed package repair did not report a change");
-  const linkPath = path.join(project, ".claude", "skills");
-  if (await realpath(linkPath) !== await realpath(path.join(project, ".agents", "skills"))) {
-    throw new Error("installed package repair did not restore the canonical skills link");
-  }
+  if (!(await readFile(path.join(project, "CLAUDE.md"), "utf8")).includes("@AGENTS.md")) throw new Error("installed package repair did not restore the Claude rules bridge");
   const agents = await readFile(path.join(project, "AGENTS.md"), "utf8");
   if (!agents.includes("repomemo:start")) throw new Error("installed package did not initialize AGENTS.md");
   process.stdout.write(`package smoke passed: ${tarball}\n`);

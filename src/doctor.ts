@@ -1,4 +1,4 @@
-import { readdir, unlink } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { getAdapter, getAdapters } from "./adapters.js";
 import {
@@ -7,9 +7,9 @@ import {
   GEMINI_BLOCK, GEMINI_END, GEMINI_START,
   LINK_SPECS, VERSION
 } from "./constants.js";
-import { createLink, inspectLink } from "./links.js";
+import { createLink, inspectLink, linkAppliesToHarness, stageLinkRemovals, type LinkRemovalTransaction } from "./links.js";
 import { applyManagedBlock, hasClaudeAgentsImport, hasGeminiAgentsImport, inspectManagedBlock } from "./managed-block.js";
-import { atomicWriteBatch, NonUtf8TextError, pathKind, readText, type TextWrite } from "./path-utils.js";
+import { atomicWriteBatch, NonUtf8TextError, pathKind, readText, withProjectInitLock, type TextWrite } from "./path-utils.js";
 import { applySkillAdoption, planSkillAdoption } from "./skill-adoption.js";
 import { inspectSkills } from "./skills-doctor.js";
 import { validateState } from "./state.js";
@@ -58,8 +58,14 @@ async function planManagedRepair(
   return { filePath, content: applied.content };
 }
 
-async function repair(target: string, harness: string | undefined): Promise<string[]> {
+interface RepairResult {
+  changed: string[];
+  findings: Finding[];
+}
+
+async function repair(target: string, harness: string | undefined): Promise<RepairResult> {
   const changed: string[] = [];
+  const repairFindings: Finding[] = [];
   const adoption = await planSkillAdoption(target, harness);
   const textPlans: Array<{ relativePath: string; write: TextWrite }> = [];
   const agents = await planManagedRepair(target, "AGENTS.md", AGENTS_BLOCK, AGENTS_START, AGENTS_END, false);
@@ -73,21 +79,39 @@ async function repair(target: string, harness: string | undefined): Promise<stri
     if (gemini) textPlans.push({ relativePath: "GEMINI.md", write: gemini });
   }
 
+  const deprecatedLinkRemovals: Array<(typeof DEPRECATED_LINK_SPECS)[number]> = [];
+  for (const spec of DEPRECATED_LINK_SPECS) {
+    if (!linkAppliesToHarness(spec, harness)) continue;
+    const inspection = await inspectLink(target, spec);
+    if (inspection.kind === "valid" || inspection.kind === "broken") deprecatedLinkRemovals.push(spec);
+  }
+
+  let linkRemoval: LinkRemovalTransaction | undefined;
   let rollbackAdoption: (() => Promise<void>) | undefined;
   try {
+    linkRemoval = await stageLinkRemovals(target, deprecatedLinkRemovals);
     if (!adoption.findings.some((entry) => entry.severity === "error") && adoption.roots.length > 0) {
       rollbackAdoption = await applySkillAdoption(target, adoption);
     }
     await atomicWriteBatch(textPlans.map((plan) => plan.write));
   } catch (error) {
-    if (rollbackAdoption) await rollbackAdoption().catch(() => undefined);
-    throw error;
+    const rollbackErrors: string[] = [];
+    if (rollbackAdoption) {
+      try { await rollbackAdoption(); } catch (rollbackError) { rollbackErrors.push(`Skill adoption: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
+    }
+    if (linkRemoval) {
+      try { await linkRemoval.rollback(); } catch (rollbackError) { rollbackErrors.push(`deprecated links: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
+    }
+    if (rollbackErrors.length === 0) throw error;
+    const original = error instanceof Error ? error.message : String(error);
+    throw new Error(`${original}; rollback also failed: ${rollbackErrors.join("; ")}`);
   }
   for (const root of adoption.roots) {
     for (const move of root.moves) changed.push(move.destinationRelative);
     changed.push(root.relativePath);
   }
   changed.push(...textPlans.map((plan) => plan.relativePath));
+  changed.push(...deprecatedLinkRemovals.map((spec) => spec.link));
   for (const spec of LINK_SPECS) {
     if (!bridgeEnabled(harness, spec.harness)) continue;
     const inspection = await inspectLink(target, spec);
@@ -104,15 +128,15 @@ async function repair(target: string, harness: string | undefined): Promise<stri
       }
     }
   }
-  for (const spec of DEPRECATED_LINK_SPECS) {
-    if (!bridgeEnabled(harness, spec.harness)) continue;
-    const inspection = await inspectLink(target, spec);
-    if (inspection.kind === "valid" || inspection.kind === "broken") {
-      await unlink(path.join(target, spec.link));
-      changed.push(spec.link);
-    }
+  for (const cleanupError of await linkRemoval?.commit() ?? []) {
+    repairFindings.push(item(
+      "DEPRECATED_LINK_CLEANUP_FAILED",
+      "warning",
+      `The obsolete discovery path was removed, but its hidden staged alias could not be deleted: ${cleanupError}`,
+      true
+    ));
   }
-  return changed;
+  return { changed, findings: repairFindings };
 }
 
 async function inspectManaged(
@@ -158,11 +182,19 @@ async function inspectManaged(
   if (applied.kind === "updated") findings.push(item("MANAGED_BLOCK_DRIFT", "error", `${relativePath} managed content differs from RepoMemo ${VERSION}.`, true, relativePath, options.harness));
 }
 
-async function inspectAncestors(target: string, findings: Finding[]): Promise<void> {
+function ancestorNames(harness: string | undefined): string[] {
+  if (!harness) return [".git", "AGENTS.md", "CLAUDE.md", "GEMINI.md"];
+  if (harness === "claude") return [".git", "CLAUDE.md"];
+  if (harness === "gemini") return [".git", "GEMINI.md"];
+  return [".git", "AGENTS.md"];
+}
+
+async function inspectAncestors(target: string, findings: Finding[], harness: string | undefined): Promise<void> {
   let current = path.dirname(target);
   while (true) {
-    for (const name of [".git", "AGENTS.md", "CLAUDE.md", "GEMINI.md"]) {
-      if (await pathKind(path.join(current, name)) !== "missing") findings.push(item("AMBIENT_ANCESTOR_CONTEXT", "info", `Ancestor context may affect Harness root or instructions: ${path.join(current, name)}`, false));
+    for (const name of ancestorNames(harness)) {
+      const ancestorPath = path.join(current, name);
+      if (await pathKind(ancestorPath) !== "missing") findings.push(item("AMBIENT_ANCESTOR_CONTEXT", "info", `Ancestor context may affect Harness root or instructions: ${ancestorPath}`, false, ancestorPath, harness));
     }
     const parent = path.dirname(current);
     if (parent === current) break;
@@ -180,7 +212,8 @@ async function hasGitContext(target: string): Promise<boolean> {
   }
 }
 
-async function inspectNestedAgents(target: string, findings: Finding[]): Promise<void> {
+async function inspectNestedAgents(target: string, findings: Finding[], harness: string | undefined): Promise<void> {
+  if (harness === "claude" || harness === "gemini") return;
   const ignored = new Set([
     ".git", ".hg", ".svn", ".venv", "venv", "node_modules", "vendor", "dist", "build", "target",
     ".test-dist", ".cache", ".next", ".nuxt", ".output", ".turbo", ".pnpm", ".yarn", "coverage"
@@ -207,7 +240,10 @@ async function inspectNestedAgents(target: string, findings: Finding[]): Promise
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.isSymbolicLink() || ignored.has(entry.name)) continue;
       const child = path.join(directory, entry.name);
-      if (await pathKind(path.join(child, "AGENTS.md")) === "file") findings.push(item("NESTED_AGENTS_HARNESS_DEPENDENT", "warning", `Nested AGENTS.md has Harness-specific semantics: ${path.relative(target, path.join(child, "AGENTS.md"))}`, false));
+      if (await pathKind(path.join(child, "AGENTS.md")) === "file") {
+        const nestedPath = path.relative(target, path.join(child, "AGENTS.md"));
+        findings.push(item("NESTED_AGENTS_HARNESS_DEPENDENT", "warning", `Nested AGENTS.md has Harness-specific semantics: ${nestedPath}`, false, nestedPath, harness));
+      }
       queue.push({ directory: child, depth: depth + 1 });
     }
   }
@@ -254,37 +290,71 @@ async function inspectProject(target: string, harness: string | undefined): Prom
   }
 
   for (const spec of DEPRECATED_LINK_SPECS) {
-    if (!bridgeEnabled(harness, spec.harness)) continue;
+    if (!linkAppliesToHarness(spec, harness)) continue;
     const inspection = await inspectLink(target, spec);
     if (inspection.kind === "valid" || inspection.kind === "broken") {
-      findings.push(item("DEPRECATED_SKILLS_LINK", "warning", `${spec.link} is an obsolete RepoMemo alias. The current contract uses only .agents/skills to avoid duplicate discovery; repair will remove this exact alias without touching independent content.`, true, spec.link, spec.harness));
+      findings.push(item("DEPRECATED_SKILLS_LINK", "error", `${spec.link} is an obsolete RepoMemo alias scanned by ${spec.consumers?.join(", ") ?? spec.harness}. It violates the single-canonical-root contract and can duplicate Skill discovery; repair will transactionally remove this exact alias without touching independent content.`, true, spec.link, harness ?? spec.harness));
     } else if (inspection.kind === "conflict" && !adoptingRoots.has(spec.link)) {
-      findings.push(item("HARNESS_SKILLS_PATH_PRESENT", "warning", `${spec.link} contains independent Harness Skills in addition to .agents/skills; merge them to avoid duplicate names.`, false, spec.link, spec.harness));
+      findings.push(item("HARNESS_SKILLS_PATH_CONFLICT", "error", `${spec.link} is an independent or foreign Harness path in addition to .agents/skills. It is scanned by ${spec.consumers?.join(", ") ?? spec.harness}; merge portable Skills into the canonical root and remove the duplicate discovery path. RepoMemo will not touch it automatically.`, false, spec.link, harness ?? spec.harness));
     }
   }
+
+  if (!harness || harness === "claude") findings.push(item(
+    "CLAUDE_SKILLS_MANUAL",
+    "info",
+    "Claude Code receives the canonical Skill instruction through CLAUDE.md and AGENTS.md, but does not natively catalog .agents/skills. RepoMemo intentionally omits a .claude/skills alias because OpenCode, Cursor, and Copilot scan both paths and would discover every Skill twice.",
+    false,
+    ".agents/skills",
+    "claude"
+  ));
+
+  if (!harness || harness === "opencode") findings.push(item(
+    "OPENCODE_SKILLS_MANUAL",
+    "info",
+    "OpenCode 1.17.7 did not catalog project .agents/skills without the removed .claude alias, even in a Git worktree. AGENTS.md still instructs it to read applicable canonical Skills manually; the alias is not restored because it creates duplicate entries in multi-path scanners.",
+    false,
+    ".agents/skills",
+    "opencode"
+  ));
 
   if ((!harness || harness === "opencode") && !await hasGitContext(target)) {
     findings.push(item(
       "OPENCODE_NON_GIT_SKILLS_LIMITATION",
       "warning",
-      "Tested OpenCode versions may not discover project Skills outside a Git worktree; RepoMemo will not initialize Git, so smoke-test Skill discovery in the installed OpenCode runtime.",
+      "OpenCode also uses Git worktree boundaries for project discovery. RepoMemo will not initialize Git; in a non-Git directory, verify the effective project root in the installed OpenCode runtime.",
       false,
       ".agents/skills",
       "opencode"
     ));
   }
 
+  if (harness) {
+    const minimum = getAdapter(harness)?.evidence.minimumVersion;
+    if (minimum) findings.push(item(
+      "HARNESS_MINIMUM_VERSION",
+      "warning",
+      `${getAdapter(harness)?.name ?? harness} native Skill support requires version ${minimum} or newer. RepoMemo does not execute third-party Harness commands, so verify the installed runtime version before relying on native discovery.`,
+      false,
+      ".agents/skills",
+      harness
+    ));
+  }
+
   if (await pathKind(path.join(target, ".git")) !== "missing") findings.push(item("TARGET_GIT_PRESENT", "info", "A .git entry is present; RepoMemo does not read or modify it.", false, ".git"));
-  await inspectAncestors(target, findings);
-  await inspectNestedAgents(target, findings);
+  await inspectAncestors(target, findings, harness);
+  await inspectNestedAgents(target, findings, harness);
   return findings;
 }
 
-export async function runDoctor(target: string, options: DoctorOptions): Promise<DoctorReport> {
+async function runDoctorUnlocked(target: string, options: DoctorOptions): Promise<DoctorReport> {
   const changedPaths: string[] = [];
   const findings: Finding[] = [];
   try {
-    if (options.repair) changedPaths.push(...await repair(target, options.harness));
+    if (options.repair) {
+      const repaired = await repair(target, options.harness);
+      changedPaths.push(...repaired.changed);
+      findings.push(...repaired.findings);
+    }
     findings.push(...await inspectProject(target, options.harness));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -301,4 +371,24 @@ export async function runDoctor(target: string, options: DoctorOptions): Promise
     findings,
     support: selectedAdapters(options.harness)
   };
+}
+
+export async function runDoctor(target: string, options: DoctorOptions): Promise<DoctorReport> {
+  if (options.repair) {
+    try {
+      return await withProjectInitLock(target, () => runDoctorUnlocked(target, options));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        schemaVersion: 1,
+        version: VERSION,
+        target,
+        healthy: false,
+        changed: false,
+        findings: [item("PROJECT_LOCK_ERROR", "error", `${message}. No repair was started; retry after the active RepoMemo writer finishes.`, false)],
+        support: selectedAdapters(options.harness)
+      };
+    }
+  }
+  return runDoctorUnlocked(target, options);
 }

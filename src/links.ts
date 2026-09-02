@@ -1,11 +1,17 @@
-import { mkdir, readlink, realpath, symlink, unlink } from "node:fs/promises";
+import { mkdir, readlink, realpath, rename, symlink, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathKind } from "./path-utils.js";
 
 export interface LinkSpec {
   harness: string;
+  consumers?: readonly string[];
   link: string;
   target: string;
+}
+
+export function linkAppliesToHarness(spec: LinkSpec, harness: string | undefined): boolean {
+  return !harness || spec.harness === harness || spec.consumers?.includes(harness) === true;
 }
 
 export type LinkInspection =
@@ -55,4 +61,75 @@ export async function createLink(root: string, spec: LinkSpec, replaceExact = fa
   if (replaceExact) await unlink(linkPath);
   if (process.platform === "win32") await symlink(expected, linkPath, "junction");
   else await symlink(path.relative(path.dirname(linkPath), expected), linkPath, "dir");
+}
+
+interface StagedLinkRemoval {
+  spec: LinkSpec;
+  original: string;
+  backup: string;
+}
+
+export interface LinkRemovalTransaction {
+  commit(): Promise<string[]>;
+  rollback(): Promise<void>;
+}
+
+/**
+ * Move exact managed aliases out of their discovery paths before any other
+ * mutation. The moved entry is inspected again so a check/rename race can
+ * never turn a user-controlled replacement into an unlink target.
+ */
+export async function stageLinkRemovals(root: string, specs: readonly LinkSpec[]): Promise<LinkRemovalTransaction> {
+  const staged: StagedLinkRemoval[] = [];
+  const rollback = async (): Promise<void> => {
+    const errors: string[] = [];
+    for (const entry of [...staged].reverse()) {
+      try {
+        if (await pathKind(entry.original) !== "missing") throw new Error(`${entry.spec.link} changed while its obsolete alias was staged`);
+        await rename(entry.backup, entry.original);
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (errors.length > 0) throw new Error(`deprecated-link rollback failed: ${errors.join("; ")}`);
+  };
+
+  try {
+    for (const spec of specs) {
+      const original = path.join(root, spec.link);
+      const backupRelative = path.join(path.dirname(spec.link), `.${path.basename(spec.link)}.repomemo-remove-${randomUUID()}`);
+      const backup = path.join(root, backupRelative);
+      await rename(original, backup);
+      const moved = await inspectLink(root, { ...spec, link: backupRelative });
+      if (moved.kind !== "valid" && moved.kind !== "broken") {
+        await rename(backup, original);
+        throw new Error(`${spec.link} changed before RepoMemo could stage the exact obsolete alias`);
+      }
+      staged.push({ spec, original, backup });
+    }
+  } catch (error) {
+    try {
+      await rollback();
+    } catch (rollbackError) {
+      const original = error instanceof Error ? error.message : String(error);
+      const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+      throw new Error(`${original}; ${rollbackMessage}`);
+    }
+    throw error;
+  }
+
+  return {
+    rollback,
+    commit: async () => {
+      const cleanupErrors: string[] = [];
+      for (const entry of staged) {
+        try {
+          await unlink(entry.backup);
+        } catch (error) {
+          cleanupErrors.push(`${path.relative(root, entry.backup)}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      return cleanupErrors;
+    }
+  };
 }

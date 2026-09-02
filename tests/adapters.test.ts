@@ -16,10 +16,23 @@ test("adapter registry exposes the fixed v2 launch set", () => {
     if (adapter.evidence.level === "official-smoke") assert.ok(adapter.evidence.verifiedVersion);
   }
   assert.deepEqual(getAdapter("codex")?.skills, { mode: "native", path: ".agents/skills" });
-  assert.deepEqual(getAdapter("opencode")?.skills, { mode: "native", path: ".agents/skills" });
+  assert.deepEqual(getAdapter("claude")?.skills, {
+    mode: "manual",
+    path: ".agents/skills",
+    mechanism: "AGENTS.md instruction imported through CLAUDE.md; alias omitted to prevent duplicate discovery in multi-path Harnesses"
+  });
+  assert.deepEqual(getAdapter("opencode")?.skills, {
+    mode: "manual",
+    path: ".agents/skills",
+    mechanism: "AGENTS.md instruction; tested 1.17.7 did not catalog the project path without a duplicate compatibility alias"
+  });
   assert.deepEqual(getAdapter("opencode")?.bridges, []);
-  assert.deepEqual(LINK_SPECS, [{ harness: "claude", link: ".claude/skills", target: ".agents/skills" }]);
-  assert.deepEqual(DEPRECATED_LINK_SPECS, [{ harness: "zcode", link: ".zcode/skills", target: ".agents/skills" }]);
+  assert.equal(getAdapter("gemini")?.evidence.minimumVersion, "0.26.0");
+  assert.deepEqual(LINK_SPECS, []);
+  assert.deepEqual(DEPRECATED_LINK_SPECS, [
+    { harness: "claude", consumers: ["claude", "opencode", "cursor", "copilot"], link: ".claude/skills", target: ".agents/skills" },
+    { harness: "zcode", consumers: ["zcode"], link: ".zcode/skills", target: ".agents/skills" }
+  ]);
 });
 
 test("adapter registry callers receive defensive clones", () => {

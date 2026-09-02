@@ -1,16 +1,17 @@
 <!-- repomemo-state:v1 -->
 # Agent State
 
-- Status: done
-- Updated: 2026-09-02T05:24:33Z
+- Status: active
+- Updated: 2026-09-02T07:47:14Z
 - Last Harness: codex
 - Scope: .
 
 ## Goal
 
-Prepare and comprehensively validate RepoMemo 2.0.1: expose the concise
-`init`, `doctor`, and `repair` workflow; support fresh and mid-project adoption,
-safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
+Publish the fully validated RepoMemo 2.0.2 closure to GitHub and npm, create the
+version tag and GitHub Release, update the Homebrew tap, and verify each public
+installation path without weakening the offline, Git-neutral, zero-runtime-
+dependency, and fail-closed contract.
 
 ## Completed
 
@@ -71,9 +72,11 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   landing-page copy, and all four standard/China installer entrypoints to `main`.
 - Replaced the shared infographic with user-provided, language-specific English
   and Chinese campaign images and wired each README to its matching asset.
-- Kept Claude Code's required `.claude/skills` compatibility link while removing
-  only ZCode's obsolete alias; runtime link behavior now derives from the Harness
-  registry so code and generated compatibility matrices cannot silently diverge.
+- Removed the obsolete Claude and ZCode Skill aliases after real multi-Harness
+  testing showed that compatibility links create duplicate discovery paths.
+  Claude and tested OpenCode 1.17.7 now report the canonical `.agents/skills`
+  fallback honestly as `manual`; Cursor, Copilot, ZCode, Codex, Gemini, and DSH
+  retain their registry-backed native claims at their documented evidence levels.
 - Completed an independent, repository-external adversarial QA pass against a
   realistic mid-development TypeScript project, with no RepoMemo product-code changes.
 - Confirmed three release-significant defects: the current ZCode bridge creates
@@ -82,6 +85,26 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Confirmed additional robustness gaps around invalid Skill structure, cross-Harness
   discovery overlap, partial writes, broad targets, JSON error output, placeholder
   state detection, nested-directory performance, and concurrent-init warnings.
+- Closed all 13 confirmed findings (3 high, 7 medium, and 3 low) with automated
+  regressions and a repository-external acceptance suite; no finding remains open.
+- Completed a second repository-external QA round with three independent lanes:
+  17 black-box scenario groups, source-level white-box review, and an eight-Harness
+  switching matrix. This round found 12 new issues (2 high, 6 medium, 4 low) while
+  leaving product code unchanged. Evidence is retained under
+  `/Users/sun/Documents/myRepo/repomemo-blackbox-round2` and
+  `/Users/sun/Documents/myRepo/repomemo-multiharness-qa-20260902`.
+- Closed all 12 second-round findings in RepoMemo 2.0.2. Shared temporary roots
+  are rejected; all consumers diagnose and repair the obsolete Claude alias;
+  repair reports mutations and lock failures consistently; YAML scalar typing,
+  README conflicts, timestamps, touched paths, ancestor/nested diagnostics, and
+  Gemini's minimum version boundary now fail closed or report exact scope.
+- Closed the four associated robustness risks with staged alias removal and
+  reinspection, inode-checked stale-lock quarantine, surfaced rollback failures,
+  and HTML-comment-aware bridge detection. The bilingual matrix renderer now
+  validates both files before writing and performs a reversible two-file update.
+- Added focused regressions and package-smoke coverage, bringing the TypeScript
+  suite to 63 tests. Scoped OpenCode, Cursor, and Copilot repair was also exercised
+  independently against real filesystem aliases.
 
 ## Decisions
 
@@ -107,9 +130,11 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - The first npm publish was rejected until the account enabled publish-protecting 2FA.
 - Public `npx` verification initially ran from RepoMemo's own source directory, causing npm to treat the root package as already installed; a truly fresh directory passed.
 - Homebrew clean CI found downloaded JavaScript needed an explicit executable mode and strict audit rejected a redundant version field; both formula defects were fixed.
-- A first OpenCode hypothesis assumed a Claude compatibility link was required;
-  stricter Git-worktree testing proved `.agents/skills` is discovered natively, so
-  the unnecessary bridge change was reverted.
+- Earlier OpenCode smoke testing incorrectly treated a successful run as proof of
+  native `.agents/skills` catalog discovery. Instrumented OpenCode 1.17.7 testing
+  later showed that the Claude alias caused duplicate discovery, while removing
+  it yielded no project Skill catalog even inside a Git worktree. The registry
+  now records this tested limitation as `manual` and `provisional`.
 - Reusing a rewritten tarball at the same path allowed `pnpm dlx` to serve stale
   CLI content; the entrypoint smoke now copies each artifact to a unique path.
 - Current Gemini testing is blocked by its account/backend `UNSUPPORTED_CLIENT`
@@ -130,6 +155,11 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   missing authentication; ZCode model execution by missing model configuration;
   Claude Code, Cursor, and Copilot CLIs were not installed. These are coverage
   limits, not RepoMemo defects.
+- In the second QA round, Claude Code, Cursor, and Copilot CLIs remained unavailable;
+  their discovery-path checks used current official contracts and were not labeled
+  live runtime passes. DSH's headless probe produced no output within 30 seconds and
+  was terminated; only its installed source was counted. Gemini 0.1.12 was old enough
+  to expose the newly recorded missing-version-boundary defect.
 
 ## Touched Paths
 
@@ -173,7 +203,8 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   non-Git, and Git-backed OpenCode cases passed; source, notes, state, user rules,
   and user skills retained their expected hashes.
 - All eight registry Harness contracts pass RepoMemo `doctor`. Real read-only
-  skill/state discovery passed in Codex, OpenCode (Git worktree), and DSH.
+  Skill/state discovery passed in Codex, ZCode, and DSH; OpenCode 1.17.7's missing
+  alias-free project catalog is explicitly reported instead of counted as native.
 - `pnpm audit --prod` reports no known vulnerabilities and the package retains
   zero production dependencies.
 - The full 35-test verification, prepack verification, fresh-package smoke,
@@ -221,10 +252,35 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Both localized replacement images are byte-identical to the supplied PNGs;
   48/48 verification passes twice, and the fourteen-file package smoke test
   confirms that both assets ship in the npm tarball.
+- Final adversarial closure passes all 13/13 external checks. The TypeScript suite
+  passes 49/49 on both Node.js 22.23.2 and the bundled Node.js 24 runtime; matrix,
+  package, `pnpm dlx`/`npx` entrypoint, standard/China installer, production audit,
+  and repository self-doctor checks also pass. The self-doctor is healthy with
+  only informational Claude/OpenCode manual-mode and Git findings.
+- Second-round black-box QA passed 16/17 scenario groups and independently found
+  that macOS shared `/tmp` and `/var/tmp` roots bypass the dangerous-target guard.
+  Live/installed Harness checks passed for Codex rule/state/Skill reading, Gemini
+  rule import, OpenCode catalog instrumentation, and ZCode canonical catalog.
+  White-box and cross-Harness review confirmed 11 additional issues involving
+  scoped duplicate-path diagnosis, repair reporting, YAML typing, locking, JSON
+  timeouts, matrix markers, version bounds, and lower-severity state/diagnostic
+  consistency. No product fix was made during this testing-only round.
+- RepoMemo 2.0.2 passes 63/63 tests, typecheck, and generated bilingual matrix
+  checks on both Node.js 22.23.2 and the bundled Node.js 24 runtime.
+- The fourteen-file `repomemo-2.0.2.tgz` passes fresh-package smoke and standard/
+  China installer smoke; `pnpm audit --prod` reports no known vulnerabilities.
+- The prior external 13-finding acceptance verifier remains 13/13 green, and the
+  refreshed eight-Harness matrix confirms healthy clean projects, scoped duplicate
+  alias diagnosis, honest Gemini/OpenCode boundaries, and path-bearing ancestor
+  findings. Real OpenCode 1.17.7 instrumentation still demonstrates why the old
+  Claude alias is unsafe, while the embedded ZCode CLI catalogs the canonical
+  Skill exactly once.
+- Repository self-init is byte-idempotent (`0 change(s)`), self-doctor is healthy,
+  and `git diff --check` passes. No commit, push, tag, npm publish, GitHub Release,
+  or Homebrew update was performed in this local closure goal.
 
 ## Next Action
 
-The implementation goal is complete. Keep npm, GitHub Release, and Homebrew
-2.0.1 publication behind explicit release authorization; until then, public
-package-manager `latest` remains 2.0.0 even though `main` contains validated
-2.0.1 source and installers.
+Commit and push the validated 2.0.2 source, publish tag and release artifacts,
+publish npm, update the Homebrew formula, then verify every public endpoint and
+record the resulting release identifiers.

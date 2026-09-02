@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -62,7 +63,7 @@ test("clean init creates the contract and doctor passes", async (t) => {
   for (const relative of ["AGENTS.md", "AGENT_STATE.md", ".agents/skills/README.md", "CLAUDE.md", "GEMINI.md"]) {
     assert.match(await readFile(path.join(target, relative), "utf8"), /\S/u);
   }
-  assert.equal(await readlink(path.join(target, ".claude", "skills")) !== "", true);
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
   await assert.rejects(readlink(path.join(target, ".zcode", "skills")));
   const doctor = runCli(["doctor", "--target", target, "--json"]);
   assert.equal(doctor.status, 0, doctor.stderr);
@@ -132,6 +133,16 @@ test("bridge adoption follows real Markdown import semantics", async (t) => {
   assert.equal(await readFile(path.join(inline, "CLAUDE.md"), "utf8"), "Read @AGENTS.md before working.\n");
 });
 
+test("HTML-comment imports never suppress a real managed bridge", async (t) => {
+  const { target } = await fixture(t);
+  await writeFile(path.join(target, "CLAUDE.md"), "<!-- @AGENTS.md -->\n", "utf8");
+  await writeFile(path.join(target, "GEMINI.md"), "<!--\n@AGENTS.md\n-->\n", "utf8");
+  const result = runCli(["init", "--target", target]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(await readFile(path.join(target, "CLAUDE.md"), "utf8"), /repomemo:bridge:claude:start/u);
+  assert.match(await readFile(path.join(target, "GEMINI.md"), "utf8"), /repomemo:bridge:gemini:start/u);
+});
+
 test("malformed managed block fails before any other write", async (t) => {
   const { target } = await fixture(t);
   await writeFile(path.join(target, "AGENTS.md"), "<!-- repomemo:start -->\nmissing end\n", "utf8");
@@ -172,9 +183,8 @@ test("doctor warns about advisory instruction-like state without rewriting it", 
   assert.equal(await readFile(statePath, "utf8"), state);
 });
 
-test("repair recreates missing managed bridges and links", async (t) => {
+test("repair recreates missing managed bridges without duplicate Skill aliases", async (t) => {
   const { target } = await initialized(t);
-  await unlink(path.join(target, ".claude", "skills"));
   await unlink(path.join(target, "CLAUDE.md"));
   const result = runCli(["repair", "--target", target, "--json"]);
   assert.equal(result.status, 0, result.stderr);
@@ -182,7 +192,8 @@ test("repair recreates missing managed bridges and links", async (t) => {
   assert.equal(report.changed, true);
   assert.equal(report.healthy, true);
   assert.match(await readFile(path.join(target, "CLAUDE.md"), "utf8"), /@AGENTS\.md/u);
-  assert.ok(await readlink(path.join(target, ".claude", "skills")));
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
+  assert.ok(report.findings.some((entry: { code: string }) => entry.code === "CLAUDE_SKILLS_MANUAL"));
 });
 
 test("foreign skills link is a fail-closed conflict", async (t) => {
@@ -193,7 +204,7 @@ test("foreign skills link is a fail-closed conflict", async (t) => {
   await symlink(outside, path.join(target, ".claude", "skills"), process.platform === "win32" ? "junction" : "dir");
   const result = runCli(["init", "--target", target]);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /SKILLS_LINK_CONFLICT/u);
+  assert.match(result.stderr, /HARNESS_SKILLS_PATH_CONFLICT/u);
   await assert.rejects(readFile(path.join(target, "AGENTS.md"), "utf8"));
 });
 
@@ -207,9 +218,24 @@ test("doctor reports ancestor context and nested AGENTS without failing", async 
   await writeFile(path.join(target, "nested", "AGENTS.md"), "nested\n");
   const result = runCli(["doctor", "--target", target, "--json"]);
   assert.equal(result.status, 0);
-  const codes = JSON.parse(result.stdout).findings.map((finding: { code: string }) => finding.code);
+  const parsed = JSON.parse(result.stdout);
+  const codes = parsed.findings.map((finding: { code: string }) => finding.code);
   assert.ok(codes.includes("AMBIENT_ANCESTOR_CONTEXT"));
   assert.ok(codes.includes("NESTED_AGENTS_HARNESS_DEPENDENT"));
+  assert.ok(parsed.findings.filter((finding: { code: string }) => finding.code === "AMBIENT_ANCESTOR_CONTEXT").every((finding: { path?: string }) => finding.path));
+  assert.ok(parsed.findings.filter((finding: { code: string }) => finding.code === "NESTED_AGENTS_HARNESS_DEPENDENT").every((finding: { path?: string }) => finding.path));
+});
+
+test("scoped ancestor diagnosis excludes unrelated Harness files", async (t) => {
+  const { root } = await fixture(t);
+  for (const name of ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]) await writeFile(path.join(root, name), `${name}\n`);
+  const target = path.join(root, "child");
+  await mkdir(target);
+  assert.equal(runCli(["init", "--target", target]).status, 0);
+  const report = JSON.parse(runCli(["doctor", "--target", target, "--harness", "codex", "--json"]).stdout);
+  const paths = report.findings.filter((finding: { code: string }) => finding.code === "AMBIENT_ANCESTOR_CONTEXT").map((finding: { path: string }) => finding.path);
+  assert.ok(paths.some((entry: string) => entry.endsWith("AGENTS.md")));
+  assert.ok(!paths.some((entry: string) => entry.endsWith("CLAUDE.md") || entry.endsWith("GEMINI.md")));
 });
 
 test("doctor skips generated Python environments during nested rule scans", async (t) => {
@@ -224,7 +250,6 @@ test("doctor skips generated Python environments during nested rule scans", asyn
 test("doctor harness filtering returns one adapter and skips unrelated bridges", async (t) => {
   const { target } = await initialized(t);
   await unlink(path.join(target, "CLAUDE.md"));
-  await unlink(path.join(target, ".claude", "skills"));
   const result = runCli(["doctor", "--target", target, "--harness", "codex", "--json"]);
   assert.equal(result.status, 0);
   const report = JSON.parse(result.stdout);
@@ -232,19 +257,47 @@ test("doctor harness filtering returns one adapter and skips unrelated bridges",
   assert.ok(!report.findings.some((finding: { harness?: string }) => finding.harness === "claude"));
 });
 
-test("OpenCode remains native when the unrelated Claude skills bridge is missing", async (t) => {
+test("OpenCode uses an honest manual fallback without a duplicate Claude Skill alias", async (t) => {
   const { target } = await initialized(t);
-  await unlink(path.join(target, ".claude", "skills"));
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
 
   const diagnosed = runCli(["doctor", "--target", target, "--harness", "opencode", "--json"]);
   assert.equal(diagnosed.status, 0, diagnosed.stderr);
   const diagnosedReport = JSON.parse(diagnosed.stdout);
   assert.deepEqual(diagnosedReport.support[0].skills, {
-    mode: "native",
-    path: ".agents/skills"
+    mode: "manual",
+    path: ".agents/skills",
+    mechanism: "AGENTS.md instruction; tested 1.17.7 did not catalog the project path without a duplicate compatibility alias"
   });
   assert.ok(!diagnosedReport.findings.some((finding: { code: string }) => finding.code.startsWith("SKILLS_LINK_")));
   assert.ok(diagnosedReport.findings.some((finding: { code: string }) => finding.code === "OPENCODE_NON_GIT_SKILLS_LIMITATION"));
+  assert.ok(diagnosedReport.findings.some((finding: { code: string }) => finding.code === "OPENCODE_SKILLS_MANUAL"));
+});
+
+test("scoped doctors and repair handle every consumer of the deprecated Claude Skill path", async (t) => {
+  const { target } = await initialized(t);
+  await mkdir(path.join(target, ".claude"), { recursive: true });
+  await symlink(path.join(target, ".agents", "skills"), path.join(target, ".claude", "skills"), process.platform === "win32" ? "junction" : "dir");
+  for (const harness of ["claude", "opencode", "cursor", "copilot"]) {
+    const diagnosed = runCli(["doctor", "--target", target, "--harness", harness, "--json"]);
+    assert.equal(diagnosed.status, 1, `${harness}: ${diagnosed.stderr}`);
+    const report = JSON.parse(diagnosed.stdout);
+    assert.equal(report.healthy, false);
+    assert.ok(report.findings.some((finding: { code: string; harness?: string }) => finding.code === "DEPRECATED_SKILLS_LINK" && finding.harness === harness));
+  }
+  const repaired = runCli(["repair", "--target", target, "--harness", "opencode", "--json"]);
+  assert.equal(repaired.status, 0, repaired.stderr);
+  assert.equal(JSON.parse(repaired.stdout).changed, true);
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
+});
+
+test("Gemini support exposes its audited native-Skills version floor", async (t) => {
+  const { target } = await initialized(t);
+  const result = runCli(["doctor", "--target", target, "--harness", "gemini", "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.support[0].evidence.minimumVersion, "0.26.0");
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "HARNESS_MINIMUM_VERSION"));
 });
 
 test("OpenCode doctor distinguishes non-Git and Git-root Skill discovery", async (t) => {
@@ -341,15 +394,12 @@ test("doctor is byte-read-only and repair never rewrites malformed state", async
 
 test("legacy doctor --repair remains a backward-compatible alias", async (t) => {
   const { target } = await initialized(t);
-  await unlink(path.join(target, ".claude", "skills"));
+  await unlink(path.join(target, "CLAUDE.md"));
   const legacy = runCli(["doctor", "--repair", "--target", target, "--harness", "claude", "--json"]);
   assert.equal(legacy.status, 0, legacy.stderr);
   assert.equal(JSON.parse(legacy.stdout).changed, true);
-  const linkPath = path.join(target, ".claude", "skills");
-  assert.equal(
-    await realpath(linkPath),
-    await realpath(path.join(target, ".agents", "skills"))
-  );
+  assert.match(await readFile(path.join(target, "CLAUDE.md"), "utf8"), /@AGENTS\.md/u);
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
 });
 
 test("strict UTF-8 validation fails closed and doctor keeps JSON parseable", async (t) => {
@@ -386,11 +436,36 @@ test("doctor accepts quoted hashes and folded YAML Skill descriptions", async (t
   const folded = path.join(target, ".agents", "skills", "folded-skill");
   await mkdir(quoted);
   await mkdir(folded);
-  await writeFile(path.join(quoted, "SKILL.md"), "---\nname: quoted-skill\ndescription: \"Build C# projects safely\"\n---\n", "utf8");
+  await writeFile(path.join(quoted, "SKILL.md"), "---\nname: \"quoted-skill\" # exact portable name\ndescription: \"Build C# projects safely\" # valid YAML comment\n---\n", "utf8");
   await writeFile(path.join(folded, "SKILL.md"), "---\nname: folded-skill\ndescription: >-\n  Handles multi-step work\n  across supported Harnesses.\n---\n", "utf8");
   const diagnosed = runCli(["doctor", "--target", target, "--json"]);
   assert.equal(diagnosed.status, 0, diagnosed.stderr);
   assert.equal(JSON.parse(diagnosed.stdout).healthy, true);
+});
+
+test("doctor rejects non-string YAML values in required Skill fields", async (t) => {
+  const { target } = await initialized(t);
+  for (const [name, description] of [["array-value", "[not, a, string]"], ["boolean-value", "true"], ["mapping-value", "{kind: invalid}"]]) {
+    const directory = path.join(target, ".agents", "skills", name ?? "");
+    await mkdir(directory);
+    await writeFile(path.join(directory, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n`, "utf8");
+  }
+  const result = runCli(["doctor", "--target", target, "--json"]);
+  assert.equal(result.status, 1);
+  const invalid = JSON.parse(result.stdout).findings.filter((finding: { code: string }) => finding.code === "SKILL_FRONTMATTER_INVALID");
+  assert.equal(invalid.length, 3);
+});
+
+test("doctor and init agree that the optional Skills README must be a file", async (t) => {
+  const { target } = await initialized(t);
+  await unlink(path.join(target, ".agents", "skills", "README.md"));
+  await mkdir(path.join(target, ".agents", "skills", "README.md"));
+  const doctor = runCli(["doctor", "--target", target, "--json"]);
+  assert.equal(doctor.status, 1);
+  assert.ok(JSON.parse(doctor.stdout).findings.some((finding: { code: string }) => finding.code === "SKILLS_README_CONFLICT"));
+  const init = runCli(["init", "--target", target]);
+  assert.equal(init.status, 1);
+  assert.match(init.stderr, /SKILLS_README_CONFLICT/u);
 });
 
 test("mid-project vendor Skills are adopted in place without byte changes", async (t) => {
@@ -408,30 +483,79 @@ test("mid-project vendor Skills are adopted in place without byte changes", asyn
   assert.equal(adopted.status, 0, adopted.stderr);
   assert.deepEqual(await readFile(path.join(target, ".agents", "skills", "claude-existing", "SKILL.md")), claudeBytes);
   assert.deepEqual(await readFile(path.join(target, ".agents", "skills", "zcode-existing", "SKILL.md")), zcodeBytes);
-  assert.equal(await realpath(path.join(target, ".claude", "skills")), await realpath(path.join(target, ".agents", "skills")));
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
+  await assert.rejects(readFile(claudeSkill));
   await assert.rejects(readFile(zcodeSkill));
   const report = JSON.parse(runCli(["doctor", "--target", target, "--json"]).stdout);
   assert.equal(report.healthy, true);
 });
 
-test("a deprecated exact ZCode link is diagnosed and removed safely", async (t) => {
+test("deprecated exact Claude and ZCode links are diagnosed and removed safely", async (t) => {
   const { target } = await initialized(t);
-  await mkdir(path.join(target, ".zcode"), { recursive: true });
-  await symlink(path.join(target, ".agents", "skills"), path.join(target, ".zcode", "skills"), process.platform === "win32" ? "junction" : "dir");
-  const before = JSON.parse(runCli(["doctor", "--target", target, "--harness", "zcode", "--json"]).stdout);
-  assert.ok(before.findings.some((entry: { code: string }) => entry.code === "DEPRECATED_SKILLS_LINK"));
-  const repaired = runCli(["repair", "--target", target, "--harness", "zcode", "--json"]);
+  for (const vendor of ["claude", "zcode"]) {
+    await mkdir(path.join(target, `.${vendor}`), { recursive: true });
+    await symlink(path.join(target, ".agents", "skills"), path.join(target, `.${vendor}`, "skills"), process.platform === "win32" ? "junction" : "dir");
+  }
+  const before = JSON.parse(runCli(["doctor", "--target", target, "--json"]).stdout);
+  assert.equal(before.findings.filter((entry: { code: string }) => entry.code === "DEPRECATED_SKILLS_LINK").length, 2);
+  const repaired = runCli(["repair", "--target", target, "--json"]);
   assert.equal(repaired.status, 0, repaired.stderr);
+  await assert.rejects(readlink(path.join(target, ".claude", "skills")));
   await assert.rejects(readlink(path.join(target, ".zcode", "skills")));
-  assert.equal(JSON.parse(repaired.stdout).support[0].skills.mode, "native");
+  assert.equal(JSON.parse(repaired.stdout).support.find((entry: { id: string }) => entry.id === "claude").skills.mode, "manual");
 });
 
 test("home and temporary roots are rejected even in dry-run mode", () => {
-  for (const unsafe of [os.homedir(), os.tmpdir()]) {
+  const unsafeRoots = [os.homedir(), os.tmpdir()];
+  if (process.platform !== "win32") unsafeRoots.push("/tmp", "/var/tmp");
+  for (const unsafe of unsafeRoots) {
     const result = runCli(["init", "--target", unsafe, "--dry-run"]);
     assert.equal(result.status, 2);
     assert.match(result.stderr, /refusing to use/u);
   }
+});
+
+test("repair is transactional when an obsolete alias cannot be staged", { skip: process.platform === "win32" }, async (t) => {
+  const { target } = await initialized(t);
+  await unlink(path.join(target, "CLAUDE.md"));
+  await mkdir(path.join(target, ".claude"), { recursive: true });
+  await symlink("../.agents/skills", path.join(target, ".claude", "skills"), "dir");
+  await chmod(path.join(target, ".claude"), 0o555);
+  const result = runCli(["repair", "--target", target, "--json"]);
+  await chmod(path.join(target, ".claude"), 0o755);
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.changed, false);
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "FILESYSTEM_ERROR"));
+  await assert.rejects(readFile(path.join(target, "CLAUDE.md"), "utf8"));
+  assert.ok(await readlink(path.join(target, ".claude", "skills")));
+});
+
+test("repair lock timeout preserves the JSON response contract", async (t) => {
+  const { target } = await initialized(t);
+  const digest = createHash("sha256").update(await realpath(target)).digest("hex").slice(0, 24);
+  const lockPath = path.join(os.tmpdir(), `repomemo-init-${digest}.lock`);
+  await writeFile(lockPath, `${JSON.stringify({ pid: process.pid, token: "held-by-test", createdAt: Date.now() })}\n`, { mode: 0o600 });
+  t.after(async () => { await rm(lockPath, { force: true }); });
+  const result = runCli(["repair", "--target", target, "--json"]);
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.healthy, false);
+  assert.equal(report.changed, false);
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "PROJECT_LOCK_ERROR"));
+});
+
+test("matrix rendering fails closed on duplicate markers before changing either README", async (t) => {
+  const { root } = await fixture(t, "matrix-fixture");
+  const english = `<!-- repomemo:matrix:start -->\nuser text\n${await readFile("README.md", "utf8")}`;
+  const chinese = await readFile("README.zh.md", "utf8");
+  await writeFile(path.join(root, "README.md"), english, "utf8");
+  await writeFile(path.join(root, "README.zh.md"), chinese, "utf8");
+  const result = spawnSync(process.execPath, [path.resolve("scripts/render-matrix.mjs")], { cwd: root, encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /ambiguous matrix markers/u);
+  assert.equal(await readFile(path.join(root, "README.md"), "utf8"), english);
+  assert.equal(await readFile(path.join(root, "README.zh.md"), "utf8"), chinese);
 });
 
 test("doctor JSON contains a stable filesystem finding for unreadable files", { skip: process.platform === "win32" }, async (t) => {

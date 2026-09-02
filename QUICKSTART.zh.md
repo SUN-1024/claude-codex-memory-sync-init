@@ -30,6 +30,17 @@ RepoMemo 会保留现有文件，但不会重建各 Harness 的私有聊天历�
 不要把这些内容复制到各 Harness 的私有文件。RepoMemo 优先使用原生发现，
 只有确实需要时才添加极薄桥接。
 
+Claude Code 会通过 `CLAUDE.md` 和 `AGENTS.md` 收到读取 `.agents/skills` 的指示，
+但不会把该目录原生列入 Skill catalog。RepoMemo 特意不创建 `.claude/skills`
+别名，因为 OpenCode、Cursor 和 Copilot 会同时扫描两处，从而把每个项目 Skill
+列出两次。本机实测的 OpenCode 1.17.7 在移除该别名后也没有建立项目
+`.agents/skills` catalog，因此该版本的 Skill 支持标为 manual，而不是夸大为
+native。
+
+Gemini 的原生 Skill 发现要求 Gemini CLI 0.26.0 或更高版本。定向执行
+`doctor --harness ...` 时，会检查该 Harness 消费的全部 Skill 路径，即使其中某个
+路径最初来自另一个 Harness 的兼容位置。
+
 ## 3. 直接切换
 
 ```bash

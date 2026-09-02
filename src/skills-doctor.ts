@@ -12,24 +12,63 @@ function finding(code: string, severity: Finding["severity"], message: string, f
   return { code, severity, message, repairable: false, path: filePath };
 }
 
-function unquoteScalar(raw: string): string | undefined {
+function quotedScalar(raw: string, quote: "'" | '"'): string | undefined {
   const trimmed = raw.trim();
-  if (trimmed.startsWith('"')) {
-    if (!trimmed.endsWith('"')) return undefined;
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      return typeof parsed === "string" && parsed.trim() ? parsed.trim() : undefined;
-    } catch {
-      return undefined;
+  if (!trimmed.startsWith(quote)) return undefined;
+  let value = "";
+  for (let index = 1; index < trimmed.length; index += 1) {
+    const character = trimmed[index] ?? "";
+    if (quote === "'" && character === "'" && trimmed[index + 1] === "'") {
+      value += "'";
+      index += 1;
+      continue;
     }
+    if (character === quote) {
+      if (!/^[ \t]*(?:#.*)?$/u.test(trimmed.slice(index + 1))) return undefined;
+      const result = value.trim();
+      return result || undefined;
+    }
+    if (quote === '"' && character === "\\") {
+      const escaped = trimmed[index + 1];
+      if (!escaped) return undefined;
+      const simple: Record<string, string> = {
+        "0": "\0", a: "\u0007", b: "\b", t: "\t", n: "\n", v: "\v", f: "\f", r: "\r",
+        e: "\u001b", " ": " ", '"': '"', "/": "/", "\\": "\\", N: "\u0085", _: "\u00a0", L: "\u2028", P: "\u2029"
+      };
+      if (simple[escaped] !== undefined) {
+        value += simple[escaped];
+        index += 1;
+        continue;
+      }
+      const widths: Record<string, number> = { x: 2, u: 4, U: 8 };
+      const width = widths[escaped];
+      if (!width) return undefined;
+      const digits = trimmed.slice(index + 2, index + 2 + width);
+      if (digits.length !== width || !/^[0-9A-Fa-f]+$/u.test(digits)) return undefined;
+      const codePoint = Number.parseInt(digits, 16);
+      if (codePoint > 0x10ffff) return undefined;
+      value += String.fromCodePoint(codePoint);
+      index += 1 + width;
+      continue;
+    }
+    value += character;
   }
-  if (trimmed.startsWith("'")) {
-    if (!trimmed.endsWith("'")) return undefined;
-    const parsed = trimmed.slice(1, -1).replace(/''/gu, "'").trim();
-    return parsed || undefined;
-  }
+  return undefined;
+}
+
+function stringScalar(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('"')) return quotedScalar(trimmed, '"');
+  if (trimmed.startsWith("'")) return quotedScalar(trimmed, "'");
   const withoutComment = trimmed.replace(/[ \t]+#.*$/u, "").trim();
-  if (!withoutComment || withoutComment === "~" || /^(?:null)$/iu.test(withoutComment)) return undefined;
+  if (
+    !withoutComment
+    || /^[\[\]{}&*!]/u.test(withoutComment)
+    || /:[ \t]/u.test(withoutComment)
+    || /^(?:~|null|true|false|[-+]?\.(?:inf|nan))$/iu.test(withoutComment)
+    || /^[-+]?(?:(?:0|[1-9][0-9_]*)(?:\.[0-9_]*)?|\.[0-9_]+)(?:e[-+]?[0-9]+)?$/iu.test(withoutComment)
+    || /^0(?:b[01_]+|o[0-7_]+|x[0-9a-f_]+)$/iu.test(withoutComment)
+  ) return undefined;
   return withoutComment;
 }
 
@@ -43,7 +82,7 @@ function frontmatterField(lines: string[], key: string): string | undefined {
   const match = matches[0];
   if (!match) return undefined;
   const blockHeader = /^[>|](?:[+-]?[1-9]?|[1-9]?[+-]?)(?:[ \t]+#.*)?$/u;
-  if (!blockHeader.test(match.raw.trim())) return unquoteScalar(match.raw);
+  if (!blockHeader.test(match.raw.trim())) return stringScalar(match.raw);
 
   const body: string[] = [];
   for (let index = match.index + 1; index < lines.length; index += 1) {
@@ -81,8 +120,11 @@ export async function inspectSkillRoot(root: string, relativeRoot: string): Prom
   const names = new Map<string, string>();
 
   for (const entry of await readdir(root, { withFileTypes: true })) {
-    if (entry.name === "README.md") continue;
     const relative = `${relativeRoot}/${entry.name}`;
+    if (entry.name === "README.md") {
+      if (!entry.isFile() || entry.isSymbolicLink()) findings.push(finding("SKILLS_README_CONFLICT", "error", `${relative} must be a regular file when present.`, relative));
+      continue;
+    }
     if (!entry.isDirectory() || entry.isSymbolicLink()) {
       findings.push(finding("SKILL_DIRECTORY_INVALID", "error", `${relative} must be a real directory containing SKILL.md for portable discovery.`, relative));
       continue;

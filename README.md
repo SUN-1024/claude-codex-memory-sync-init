@@ -119,12 +119,12 @@ my-project/
 ├── AGENT_STATE.md         # current goal, progress, tests, and next action
 ├── .agents/skills/        # reusable Agent Skills
 ├── CLAUDE.md              # thin bridge when required
-├── GEMINI.md              # thin bridge when required
-└── .claude/skills         # link required by Claude Code
+└── GEMINI.md              # thin bridge when required
 ```
 
 You maintain the first three sources. RepoMemo owns only clearly marked blocks
-and safe compatibility links. Text outside managed markers is preserved;
+and removes only obsolete aliases that point exactly to the canonical Skill
+root. Text outside managed markers is preserved;
 malformed or ambiguous markers fail closed instead of being overwritten.
 
 ## Install
@@ -218,34 +218,59 @@ Compatible upgrades update only RepoMemo-managed blocks and missing bridges.
 They preserve source files, user-authored text, `AGENT_STATE.md`, and
 `.agents/skills`. If a mid-project adoption finds an existing `.claude/skills`
 or `.zcode/skills` directory with no name collision, it moves those entries
-byte-for-byte into `.agents/skills`; Claude's old path becomes a link and the
-obsolete ZCode path is removed. A name collision fails closed with exact manual
-guidance. Repeating `init` should report `0 change(s)`.
+byte-for-byte into `.agents/skills`, then removes the empty obsolete path. Old
+RepoMemo aliases that point exactly to the canonical root are also removed. A
+name collision or foreign link fails closed with exact manual guidance.
+Repeating `init` should report `0 change(s)`.
+
+RepoMemo 2.0.2 stages obsolete aliases before changing managed text or adopting
+Skills. If any stage fails, the earlier stages are rolled back and `repair
+--json` still returns a structured error. Project initialization also refuses
+filesystem roots, the user home directory, the active OS temporary directory,
+and shared temporary roots such as `/tmp` and `/var/tmp`.
 
 ## Harness compatibility
 
 `native` means direct Harness support. `bridge` means RepoMemo adds a minimal
-import or local link. The registry and both README matrices are generated from
+import. `manual` means the imported project rules tell the Harness where to read
+the canonical Skills, but the Harness does not list them in its native Skill
+catalog. The registry and both README matrices are generated from
 [`data/harnesses.json`](./data/harnesses.json).
 
 <!-- repomemo:matrix:start -->
-| Harness | Rules | Skills | Evidence | Verified version |
+| Harness | Rules | Skills | Evidence | Version boundary |
 |---|---|---|---|---|
-| Codex | native | native | official-smoke | 0.151.0-alpha.7.2 |
-| Claude Code | bridge | bridge | official | docs only |
-| Gemini CLI | bridge | native | official | docs only |
-| OpenCode | native | native | official-smoke | 1.17.7 (catalog) |
+| Codex | native | native | official-smoke | tested 0.151.0-alpha.7.2 |
+| Claude Code | bridge | manual | official | docs only |
+| Gemini CLI | bridge | native | official | docs only; requires >=0.26.0 |
+| OpenCode | native | manual | provisional | tested 1.17.7 catalog limitation |
 | Cursor | native | native | official | docs only |
 | GitHub Copilot CLI | native | native | official | docs only |
-| ZCode | native | native | official-smoke | CLI 0.16.5 / App 3.10.2 |
-| DeepSeek Harness | native | native | source-verified | 0.1.2-alpha.4 |
+| ZCode | native | native | official-smoke | tested CLI 0.16.5 / App 3.10.2 |
+| DeepSeek Harness | native | native | source-verified | tested 0.1.2-alpha.4 |
 <!-- repomemo:matrix:end -->
 
+Claude Code currently catalogs project Skills only from `.claude/skills`, while
+OpenCode, Cursor, and Copilot can also scan that path in addition to
+`.agents/skills`. RepoMemo therefore does not create a `.claude/skills` alias:
+doing so makes every Skill appear twice in those multi-path Harnesses. Claude
+still imports `AGENTS.md` through `CLAUDE.md` and receives the instruction to
+read applicable Skills from `.agents/skills`, which is reported honestly as
+`manual` rather than native catalog discovery.
+
+Because `.claude/skills` has several consumers, a scoped `doctor --harness
+opencode`, `cursor`, or `copilot` diagnoses that obsolete path too; scoped
+`repair` removes only an exact canonical alias. Independent directories and
+foreign links remain fail-closed. Gemini native Skills require CLI 0.26.0 or
+newer, as recorded in the generated version boundary; RepoMemo never executes a
+third-party command to guess the installed version.
+
 RepoMemo itself is Git-neutral. Some Harness versions may use `.git` or other
-markers to choose a project root. In live tests, OpenCode discovered project
-Skills natively in a Git worktree but not in a plain directory;
-`doctor --harness opencode` reports that limitation. RepoMemo never runs
-`git init` on the user's behalf.
+markers to choose a project root. Although current OpenCode documentation lists
+project `.agents/skills`, installed OpenCode 1.17.7 did not catalog that path
+without the duplicate `.claude` alias, even in a Git worktree. RepoMemo reports
+OpenCode Skills as `manual` for this tested version and never runs `git init` on
+the user's behalf.
 
 ## What RepoMemo deliberately does not do
 

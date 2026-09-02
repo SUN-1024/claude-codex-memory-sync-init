@@ -33,6 +33,18 @@ before switching.
 Do not copy these into Harness-specific files. RepoMemo uses native discovery
 where available and tiny bridges only where required.
 
+Claude Code receives the `.agents/skills` instruction through `CLAUDE.md` and
+`AGENTS.md`, but does not natively catalog that directory. RepoMemo deliberately
+avoids a `.claude/skills` alias because OpenCode, Cursor, and Copilot scan both
+locations and can list every project Skill twice. Tested OpenCode 1.17.7 also
+failed to catalog project `.agents/skills` after that alias was removed, so its
+Skill support is reported as manual for this version rather than overstated as
+native.
+
+Gemini native Skill discovery requires Gemini CLI 0.26.0 or newer. Scoped
+`doctor --harness ...` checks every Skill path consumed by that Harness, even
+when the path originated as another Harness's compatibility location.
+
 ## 3. Switch directly
 
 ```bash

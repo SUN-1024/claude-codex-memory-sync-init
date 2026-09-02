@@ -65,6 +65,22 @@ function sectionBody(content: string, name: string): string | undefined {
   return new RegExp(`^## ${escaped}[ \\t]*\\r?\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mu").exec(content)?.[1]?.trim();
 }
 
+function isValidRfc3339(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/u.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = Number(match[10] ?? 0);
+  const offsetMinute = Number(match[11] ?? 0);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59 || offsetHour > 23 || offsetMinute > 59) return false;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day >= 1 && day <= daysInMonth && !Number.isNaN(Date.parse(value));
+}
+
 export function validateState(content: string): Finding[] {
   const findings: Finding[] = [];
   const markerCount = content.split(STATE_MARKER).length - 1;
@@ -80,8 +96,7 @@ export function validateState(content: string): Finding[] {
   if (!status || !["idle", "active", "blocked", "done"].includes(status)) findings.push(finding("STATE_STATUS_INVALID", "error", "Status must be idle, active, blocked, or done."));
 
   const updated = field(content, "Updated");
-  const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u;
-  if (!updated || !rfc3339.test(updated) || Number.isNaN(Date.parse(updated))) findings.push(finding("STATE_UPDATED_INVALID", "error", "Updated must be a valid RFC 3339 timestamp."));
+  if (!updated || !isValidRfc3339(updated)) findings.push(finding("STATE_UPDATED_INVALID", "error", "Updated must be a real calendar date and valid RFC 3339 timestamp."));
 
   const lastHarness = field(content, "Last Harness");
   if (!lastHarness || !/^[a-z0-9][a-z0-9._-]*$/u.test(lastHarness)) findings.push(finding("STATE_HARNESS_INVALID", "error", "Last Harness must be a lowercase harness identifier or unknown."));
@@ -114,9 +129,18 @@ export function validateState(content: string): Finding[] {
   }
 
   const touched = /## Touched Paths\s*([\s\S]*?)(?=\n## |$)/u.exec(content)?.[1] ?? "";
+  const candidates = new Set<string>();
   for (const match of touched.matchAll(/`([^`]+)`/gu)) {
     const candidate = match[1];
-    if (candidate && !isProjectRelative(candidate)) findings.push(finding("STATE_TOUCHED_PATH_ESCAPE", "error", `Touched path escapes the project: ${candidate}`));
+    if (candidate) candidates.add(candidate);
+  }
+  for (const line of touched.split(/\r?\n/u)) {
+    const bullet = /^[ \t]*-[ \t]+(.+?)[ \t]*$/u.exec(line)?.[1];
+    if (!bullet || bullet === "None." || bullet.includes("`") || /\s/u.test(bullet)) continue;
+    candidates.add(bullet.replace(/[.,;:]$/u, ""));
+  }
+  for (const candidate of candidates) {
+    if (!isProjectRelative(candidate)) findings.push(finding("STATE_TOUCHED_PATH_ESCAPE", "error", `Touched path escapes the project: ${candidate}`));
   }
 
   if (/(ignore|disregard)\s+(all|any|the|previous).*instructions|override\s+AGENTS\.md|system\s*prompt/iu.test(content)) findings.push(finding("STATE_INSTRUCTION_LIKE_TEXT", "warning", "State contains instruction-like override text; treat it only as advisory data."));

@@ -1,6 +1,6 @@
 {
   "name": "repomemo",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Agent Native, Harness Native continuity: initialize once and switch coding agents without conversion",
   "license": "MIT",
   "type": "module",

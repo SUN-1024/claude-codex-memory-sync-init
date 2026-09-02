@@ -1,4 +1,4 @@
-import { mkdir, rmdir, unlink } from "node:fs/promises";
+import { mkdir, rmdir } from "node:fs/promises";
 import path from "node:path";
 import {
   AGENTS_BLOCK, AGENTS_END, AGENTS_START, DEPRECATED_LINK_SPECS,
@@ -6,7 +6,7 @@ import {
   GEMINI_BLOCK, GEMINI_END, GEMINI_START,
   LINK_SPECS, SKILLS_README
 } from "./constants.js";
-import { createLink, inspectLink } from "./links.js";
+import { createLink, inspectLink, stageLinkRemovals, type LinkRemovalTransaction } from "./links.js";
 import { applyManagedBlock, hasClaudeAgentsImport, hasGeminiAgentsImport } from "./managed-block.js";
 import { atomicWriteBatch, NonUtf8TextError, pathKind, readText, withProjectInitLock } from "./path-utils.js";
 import { applySkillAdoption, planSkillAdoption } from "./skill-adoption.js";
@@ -171,6 +171,12 @@ async function runInitUnlocked(target: string, dryRun: boolean, dependencies: In
     if (adoptingRoots.has(spec.link)) continue;
     const inspection = await inspectLink(target, spec);
     if (inspection.kind === "valid" || inspection.kind === "broken") deprecatedLinkRemovals.push(spec);
+    else if (inspection.kind === "conflict") findings.push(conflict(
+      "HARNESS_SKILLS_PATH_CONFLICT",
+      `${inspection.reason}. RepoMemo will not remove or follow this user-controlled path; move its portable Skills into .agents/skills and remove the duplicate discovery path before retrying.`,
+      spec.link,
+      spec.harness
+    ));
   }
 
   if (findings.some((entry) => entry.severity === "error")) return { dryRun, changes: [], findings };
@@ -191,42 +197,45 @@ async function runInitUnlocked(target: string, dryRun: boolean, dependencies: In
     };
   }
 
-  await mkdir(skillsPath, { recursive: true });
+  let linkRemoval: LinkRemovalTransaction | undefined;
   let rollbackAdoption: (() => Promise<void>) | undefined;
   try {
+    linkRemoval = await stageLinkRemovals(target, deprecatedLinkRemovals);
+    await mkdir(skillsPath, { recursive: true });
     if (adoption.roots.length > 0) rollbackAdoption = await applySkillAdoption(target, adoption);
     await atomicWriteBatch(plans
       .filter((plan) => plan.action !== "unchanged" && plan.content !== undefined)
       .map((plan) => ({ filePath: path.join(target, plan.path), content: plan.content ?? "" })));
   } catch (error) {
-    if (rollbackAdoption) await rollbackAdoption().catch(() => undefined);
+    const rollbackErrors: string[] = [];
+    if (rollbackAdoption) {
+      try { await rollbackAdoption(); } catch (rollbackError) { rollbackErrors.push(`Skill adoption: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
+    }
+    if (linkRemoval) {
+      try { await linkRemoval.rollback(); } catch (rollbackError) { rollbackErrors.push(`deprecated links: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`); }
+    }
     if (skillsKind === "missing") await rmdir(skillsPath).catch(() => undefined);
     if (agentsDirectoryKind === "missing") await rmdir(agentsDirectoryPath).catch(() => undefined);
-    const message = error instanceof Error ? error.message : String(error);
+    const original = error instanceof Error ? error.message : String(error);
+    const message = rollbackErrors.length > 0 ? `${original}; rollback also failed: ${rollbackErrors.join("; ")}` : original;
     return {
       dryRun,
       changes: [],
       findings: [conflict("INITIALIZATION_IO_ERROR", `${message}. RepoMemo rolled back staged file changes where possible; run doctor before retrying.`)]
     };
   }
-  const changes = [...textChanges, ...adoption.changes];
-  for (const spec of deprecatedLinkRemovals) {
-    try {
-      await unlink(path.join(target, spec.link));
-      changes.push(`REMOVE deprecated ${spec.link}`);
-    } catch (error) {
-      const inspection = await inspectLink(target, spec);
-      if (inspection.kind === "valid" || inspection.kind === "broken") {
-        findings.push({
-          code: "DEPRECATED_LINK_REMOVE_FAILED",
-          severity: "warning",
-          message: `Could not remove obsolete ${spec.link}: ${(error as Error).message}`,
-          path: spec.link,
-          harness: spec.harness,
-          repairable: true
-        });
-      }
-    }
+  const changes = [
+    ...textChanges,
+    ...adoption.changes,
+    ...deprecatedLinkRemovals.map((spec) => `REMOVE deprecated ${spec.link}`)
+  ];
+  for (const cleanupError of await linkRemoval?.commit() ?? []) {
+    findings.push({
+      code: "DEPRECATED_LINK_CLEANUP_FAILED",
+      severity: "warning",
+      message: `The obsolete discovery path was removed, but its hidden staged alias could not be deleted: ${cleanupError}`,
+      repairable: true
+    });
   }
   for (const spec of linkActions) {
     try {

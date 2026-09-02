@@ -6,12 +6,13 @@ import type { Finding } from "./types.js";
 
 interface VendorRoot {
   harness: string;
+  consumers: readonly string[];
   relativePath: string;
 }
 
 const VENDOR_ROOTS: VendorRoot[] = [
-  { harness: "claude", relativePath: ".claude/skills" },
-  { harness: "zcode", relativePath: ".zcode/skills" }
+  { harness: "claude", consumers: ["claude", "opencode", "cursor", "copilot"], relativePath: ".claude/skills" },
+  { harness: "zcode", consumers: ["zcode"], relativePath: ".zcode/skills" }
 ];
 
 interface SkillMove {
@@ -58,11 +59,11 @@ export async function planSkillAdoption(target: string, harness?: string): Promi
   }
 
   for (const vendor of VENDOR_ROOTS) {
-    if (harness && vendor.harness !== harness) continue;
+    if (harness && !vendor.consumers.includes(harness)) continue;
     const absolutePath = path.join(target, vendor.relativePath);
     if (await pathKind(absolutePath) !== "directory") continue;
     const portabilityFindings = (await inspectSkillRoot(absolutePath, vendor.relativePath))
-      .map((entry) => ({ ...entry, harness: vendor.harness }));
+      .map((entry) => ({ ...entry, harness: harness ?? vendor.harness }));
     if (portabilityFindings.some((entry) => entry.severity === "error")) {
       findings.push(...portabilityFindings);
       continue;
@@ -77,7 +78,7 @@ export async function planSkillAdoption(target: string, harness?: string): Promi
           `${vendor.relativePath}/${name} conflicts with .agents/skills/${name}; RepoMemo left both copies untouched. Rename or merge that entry, then run init or repair again.`,
           false,
           `${vendor.relativePath}/${name}`,
-          vendor.harness
+          harness ?? vendor.harness
         ));
         continue;
       }
@@ -106,7 +107,7 @@ export async function planSkillAdoption(target: string, harness?: string): Promi
       `${root.relativePath} is a real Harness-specific directory. RepoMemo can move its entries into .agents/skills without changing their bytes, then remove the duplicate discovery root.`,
       true,
       root.relativePath,
-      root.harness
+      harness ?? root.harness
     ));
   }
 

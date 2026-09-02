@@ -121,7 +121,7 @@ function markdownOutsideCode(content: string): string {
 }
 
 function hasMarkdownAgentsImport(content: string): boolean {
-  const prose = markdownOutsideCode(content);
+  const prose = markdownOutsideCode(content).replace(/<!--[\s\S]*?(?:-->|$)/gu, "");
   return /(^|[\s([{:<>\-])@(?:\.\/)?AGENTS\.md(?=$|[\s,;:!?)}\]'">]|\.(?![A-Za-z0-9_-]))/mu.test(prose);
 }
 

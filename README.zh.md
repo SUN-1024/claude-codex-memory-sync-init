@@ -112,11 +112,11 @@ repomemo repair --harness claude
 ├── AGENT_STATE.md         # 当前目标、进度、测试和下一步
 ├── .agents/skills/        # 可复用 Agent Skills
 ├── CLAUDE.md              # 必要时使用的极薄桥
-├── GEMINI.md              # 必要时使用的极薄桥
-└── .claude/skills         # Claude Code 所需的本地链接
+└── GEMINI.md              # 必要时使用的极薄桥
 ```
 
-用户只维护前三个共享源。RepoMemo 只管理带明确标记的区块和安全兼容链接。
+用户只维护前三个共享源。RepoMemo 只管理带明确标记的区块，并且只移除精确指向
+canonical Skill 根目录的旧别名。
 托管标记外的文字保持不变；标记损坏或含义不明确时会安全停止，不猜测覆盖。
 
 ## 安装
@@ -202,33 +202,50 @@ npx repomemo@latest doctor
 兼容升级只更新 RepoMemo 托管区块和缺失的桥，保留源码、用户文字、
 `AGENT_STATE.md` 和 `.agents/skills`。中途接入时，如果发现已有的
 `.claude/skills` 或 `.zcode/skills` 目录且 Skill 名称不冲突，RepoMemo 会把其中
-内容逐字节原地归并到 `.agents/skills`；Claude 旧路径会变成链接，已经不需要的
-ZCode 旧路径会移除。名称冲突时会安全停止并给出明确处理提示。再次执行 `init`
-应显示 `0 change(s)`。
+内容逐字节原地归并到 `.agents/skills`，然后移除已经清空的旧路径。旧版 RepoMemo
+创建、且精确指向 canonical 根目录的别名也会被移除。名称冲突或外来链接会安全停止
+并给出明确处理提示。再次执行 `init` 应显示 `0 change(s)`。
+
+RepoMemo 2.0.2 会先暂存旧别名，再修改托管文字或归并 Skills；任一阶段失败都会回滚
+前序阶段，`repair --json` 仍返回结构化错误。初始化还会拒绝文件系统根、用户主目录、
+当前操作系统临时目录，以及 `/tmp`、`/var/tmp` 等共享临时根。
 
 ## Harness 兼容性
 
-`native` 表示 Harness 原生读取；`bridge` 表示 RepoMemo 添加极小的导入或本地
-链接。兼容注册表与中英文矩阵统一由
+`native` 表示 Harness 原生读取；`bridge` 表示 RepoMemo 添加极小的导入；
+`manual` 表示导入后的项目规则会告诉 Harness 去哪里读取 canonical Skills，但这些
+Skills 不会进入该 Harness 的原生 Skill catalog。兼容注册表与中英文矩阵统一由
 [`data/harnesses.json`](./data/harnesses.json) 生成。
 
 <!-- repomemo:matrix:start -->
-| Harness | Rules | Skills | Evidence | Verified version |
+| Harness | Rules | Skills | Evidence | Version boundary |
 |---|---|---|---|---|
-| Codex | native | native | official-smoke | 0.151.0-alpha.7.2 |
-| Claude Code | bridge | bridge | official | docs only |
-| Gemini CLI | bridge | native | official | docs only |
-| OpenCode | native | native | official-smoke | 1.17.7 (catalog) |
+| Codex | native | native | official-smoke | tested 0.151.0-alpha.7.2 |
+| Claude Code | bridge | manual | official | docs only |
+| Gemini CLI | bridge | native | official | docs only; requires >=0.26.0 |
+| OpenCode | native | manual | provisional | tested 1.17.7 catalog limitation |
 | Cursor | native | native | official | docs only |
 | GitHub Copilot CLI | native | native | official | docs only |
-| ZCode | native | native | official-smoke | CLI 0.16.5 / App 3.10.2 |
-| DeepSeek Harness | native | native | source-verified | 0.1.2-alpha.4 |
+| ZCode | native | native | official-smoke | tested CLI 0.16.5 / App 3.10.2 |
+| DeepSeek Harness | native | native | source-verified | tested 0.1.2-alpha.4 |
 <!-- repomemo:matrix:end -->
 
+Claude Code 当前只会从 `.claude/skills` 原生建立项目 Skill catalog；OpenCode、
+Cursor 和 Copilot 也可能在 `.agents/skills` 之外扫描该路径。因此 RepoMemo 不再
+创建 `.claude/skills` 别名，否则每个 Skill 都会在这些多路径 Harness 中出现两次。
+Claude 仍会通过 `CLAUDE.md` 导入 `AGENTS.md`，并收到从 `.agents/skills` 按需读取
+Skill 的指示；矩阵将这一能力诚实标为 `manual`，不冒充原生 catalog 发现。
+
+由于 `.claude/skills` 有多个消费者，定向执行 `doctor --harness opencode`、`cursor`
+或 `copilot` 时也会诊断这个旧路径；定向 `repair` 只删除精确指向 canonical 根的别名，
+独立目录和外来链接仍然 fail closed。Gemini 原生 Skills 要求 CLI 0.26.0 或更高版本，
+该下界记录在生成矩阵中；RepoMemo 不会执行第三方命令来猜测本机版本。
+
 RepoMemo 本身保持 Git-neutral。个别 Harness 版本仍可能依赖 `.git` 或其他标记
-判断项目根。真实测试中，OpenCode 在 Git working tree 内能原生发现项目 Skills，
-但在普通目录中没有发现；`doctor --harness opencode` 会报告这个限制。RepoMemo
-不会擅自替用户执行 `git init`。
+判断项目根。虽然 OpenCode 当前文档列出了项目级 `.agents/skills`，但本机实测的
+OpenCode 1.17.7 即使在 Git working tree 中，也没有在移除重复 `.claude` 别名后
+建立该目录的 catalog。因此该版本在矩阵中诚实标为 `manual`；RepoMemo 也不会擅自
+替用户执行 `git init`。
 
 ## RepoMemo 明确不做什么
 

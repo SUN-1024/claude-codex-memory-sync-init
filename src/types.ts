@@ -32,6 +32,7 @@ export interface HarnessAdapter {
     level: EvidenceLevel;
     docs: string[];
     verifiedVersion?: string;
+    minimumVersion?: string;
     verifiedDate: string;
   };
 }
