@@ -52,6 +52,7 @@ interface LockOwner {
   pid: number;
   token: string;
   createdAt: number;
+  ticket?: number;
 }
 
 function parseLockOwner(content: string): LockOwner | undefined {
@@ -69,25 +70,40 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
   const temporaryRoot = os.tmpdir();
   const legacyLockPath = path.join(temporaryRoot, `repomemo-init-${digest}.lock`);
   const contenderPrefix = `repomemo-init-${digest}.contender-`;
+  const choosingPrefix = `repomemo-init-${digest}.choosing-`;
   const token = randomUUID();
-  const owner: LockOwner = { pid: process.pid, token, createdAt: Date.now() };
+  let owner: LockOwner = { pid: process.pid, token, createdAt: Date.now() };
   const deadline = Date.now() + 15_000;
   const contenderPath = path.join(temporaryRoot, `${contenderPrefix}${token}`);
   const candidatePath = `${contenderPath}.candidate`;
+  const choosingPath = path.join(temporaryRoot, `${choosingPrefix}${token}`);
 
-  await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
   try {
+    await writeFile(choosingPath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    let maximumTicket = 0;
+    for (const name of await readdir(temporaryRoot)) {
+      if (!name.startsWith(contenderPrefix) || name.endsWith(".candidate")) continue;
+      const parsed = parseLockOwner(await readFile(path.join(temporaryRoot, name), "utf8").catch(() => ""));
+      maximumTicket = Math.max(maximumTicket, parsed?.ticket ?? 0);
+    }
+    owner = { ...owner, ticket: maximumTicket + 1 };
+    await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
     await rename(candidatePath, contenderPath);
+    await unlink(choosingPath);
   } catch (error) {
     await unlink(candidatePath).catch(() => undefined);
+    await unlink(choosingPath).catch(() => undefined);
     throw error;
   }
 
   try {
     while (true) {
       const contenders: LockOwner[] = [];
+      let anotherChoosing = false;
       for (const name of await readdir(temporaryRoot)) {
-        if (!name.startsWith(contenderPrefix) || name.endsWith(".candidate")) continue;
+        const isChoosing = name.startsWith(choosingPrefix);
+        const isContender = name.startsWith(contenderPrefix) && !name.endsWith(".candidate");
+        if (!isChoosing && !isContender) continue;
         const contender = path.join(temporaryRoot, name);
         const content = await readFile(contender, "utf8").catch(() => "");
         const parsed = parseLockOwner(content);
@@ -98,11 +114,12 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
           await unlink(contender).catch(() => undefined);
           continue;
         }
-        if (parsed) contenders.push(parsed);
+        if (isChoosing) anotherChoosing = true;
+        else if (parsed) contenders.push(parsed);
       }
-      contenders.sort((left, right) => left.createdAt - right.createdAt || left.token.localeCompare(right.token));
+      contenders.sort((left, right) => (left.ticket ?? 0) - (right.ticket ?? 0) || left.token.localeCompare(right.token));
 
-      if (contenders[0]?.token === token) {
+      if (!anotherChoosing && contenders[0]?.token === token) {
         const legacyContent = await readFile(legacyLockPath, "utf8").catch(() => undefined);
         if (legacyContent === undefined) break;
         const legacyOwner = parseLockOwner(legacyContent);
@@ -134,6 +151,8 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
 
     return await action();
   } finally {
+    await unlink(choosingPath).catch(() => undefined);
+    await unlink(candidatePath).catch(() => undefined);
     await unlink(contenderPath).catch(() => undefined);
   }
 }

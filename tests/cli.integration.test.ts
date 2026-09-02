@@ -56,6 +56,21 @@ test("version, help, and usage exits are stable", () => {
   const invalid = runCli(["unknown"]);
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /unknown command/u);
+  const redundant = runCli(["repair", "--repair"]);
+  assert.equal(redundant.status, 2);
+  assert.match(redundant.stderr, /unknown option for repair: --repair/u);
+});
+
+test("doctor and repair preserve JSON for startup usage failures", () => {
+  const missing = path.join(os.tmpdir(), `repomemo-missing-${process.pid}-${Date.now()}`);
+  const result = runCli(["repair", "--target", missing, "--json"]);
+  assert.equal(result.status, 2);
+  assert.equal(result.stderr, "");
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.healthy, false);
+  assert.equal(report.changed, false);
+  assert.equal(report.target, path.resolve(missing));
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "CLI_USAGE_ERROR"));
 });
 
 test("clean init creates the contract and doctor passes", async (t) => {
@@ -390,6 +405,23 @@ test("doctor is byte-read-only and repair never rewrites malformed state", async
   const repair = runCli(["repair", "--target", target, "--json"]);
   assert.equal(repair.status, 1);
   assert.equal(await readFile(statePath, "utf8"), malformed);
+});
+
+test("repair preflights every managed file before making any change", async (t) => {
+  const { target } = await initialized(t);
+  const agentsPath = path.join(target, "AGENTS.md");
+  const malformed = (await readFile(agentsPath, "utf8")).replace("<!-- repomemo:end -->", "<!-- broken-end -->");
+  await writeFile(agentsPath, malformed, "utf8");
+  await unlink(path.join(target, "CLAUDE.md"));
+
+  const result = runCli(["repair", "--target", target, "--json"]);
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.changed, false);
+  assert.ok(report.findings.some((finding: { code: string }) => finding.code === "MANAGED_BLOCK_MALFORMED"));
+  assert.ok(!report.findings.some((finding: { code: string }) => finding.code === "REPAIRED"));
+  assert.equal(await readFile(agentsPath, "utf8"), malformed);
+  await assert.rejects(readFile(path.join(target, "CLAUDE.md"), "utf8"));
 });
 
 test("legacy doctor --repair remains a backward-compatible alias", async (t) => {

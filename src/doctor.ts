@@ -351,11 +351,18 @@ async function runDoctorUnlocked(target: string, options: DoctorOptions): Promis
   const findings: Finding[] = [];
   try {
     if (options.repair) {
-      const repaired = await repair(target, options.harness);
-      changedPaths.push(...repaired.changed);
-      findings.push(...repaired.findings);
+      const preflight = await inspectProject(target, options.harness);
+      if (preflight.some((finding) => finding.severity === "error" && !finding.repairable)) {
+        findings.push(...preflight);
+      } else {
+        const repaired = await repair(target, options.harness);
+        changedPaths.push(...repaired.changed);
+        findings.push(...repaired.findings);
+        findings.push(...await inspectProject(target, options.harness));
+      }
+    } else {
+      findings.push(...await inspectProject(target, options.harness));
     }
-    findings.push(...await inspectProject(target, options.harness));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof NonUtf8TextError ? "NON_UTF8_TEXT" : "FILESYSTEM_ERROR";

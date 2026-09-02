@@ -105,6 +105,10 @@ dependency, and fail-closed contract.
 - Added focused regressions and package-smoke coverage, bringing the TypeScript
   suite to 63 tests. Scoped OpenCode, Cursor, and Copilot repair was also exercised
   independently against real filesystem aliases.
+- Added a whole-project repair preflight so malformed or otherwise non-repairable
+  contract errors stop before any bridge, alias, or Skill mutation. Startup usage
+  failures now preserve JSON mode, `repair` reports its own option errors, and the
+  redundant `repair --repair` spelling is rejected.
 
 ## Decisions
 
@@ -172,6 +176,10 @@ dependency, and fail-closed contract.
   compare-and-swap boundary. The final protocol uses unique contender files and
   deterministic election; only the elected contender inspects a legacy fixed
   lock, and no current writer ever deletes another writer's reusable path.
+- Run `33606876353` passed Windows verification after unique contenders, then a
+  repeated macOS prepack exposed that arrival-time ordering alone can admit a
+  delayed earlier-ranked contender. The lock now uses an explicit choosing phase
+  and Lamport-style `(ticket, token)` ordering.
 
 ## Touched Paths
 
@@ -290,6 +298,8 @@ dependency, and fail-closed contract.
 - Repository self-init is byte-idempotent (`0 change(s)`), self-doctor is healthy,
   and `git diff --check` passes. No commit, push, tag, npm publish, GitHub Release,
   or Homebrew update was performed in this local closure goal.
+- The release-gate suite now passes 65/65 locally; the focused lock suite passed
+  50 consecutive repetitions, followed by package and entrypoint smoke tests.
 
 ## Next Action
 

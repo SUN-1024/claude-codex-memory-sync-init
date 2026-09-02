@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from "node:path";
 import { getAdapter } from "./adapters.js";
 import { VERSION } from "./constants.js";
 import { runDoctor } from "./doctor.js";
@@ -31,7 +32,7 @@ interface CommonFlags {
   dryRun: boolean;
 }
 
-function parseFlags(args: string[], command: "init" | "doctor"): CommonFlags {
+function parseFlags(args: string[], command: "init" | "doctor" | "repair"): CommonFlags {
   const result: CommonFlags = { json: false, repair: false, dryRun: false };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -41,9 +42,9 @@ function parseFlags(args: string[], command: "init" | "doctor"): CommonFlags {
       result.target = value;
       index += 1;
     } else if (argument === "--dry-run" && command === "init") result.dryRun = true;
-    else if (argument === "--json" && command === "doctor") result.json = true;
+    else if (argument === "--json" && command !== "init") result.json = true;
     else if (argument === "--repair" && command === "doctor") result.repair = true;
-    else if (argument === "--harness" && command === "doctor") {
+    else if (argument === "--harness" && command !== "init") {
       const value = args[index + 1];
       if (!value || value.startsWith("--")) throw new CliUsageError("--harness requires an adapter id");
       if (!getAdapter(value)) throw new CliUsageError(`unknown harness: ${value}`);
@@ -80,7 +81,7 @@ async function main(): Promise<number> {
   }
   if (command !== "init" && command !== "doctor" && command !== "repair") throw new CliUsageError(`unknown command: ${command}`);
 
-  const flags = parseFlags(args, command === "init" ? "init" : "doctor");
+  const flags = parseFlags(args, command);
   if (command === "repair") flags.repair = true;
   const target = await resolveTarget(flags.target);
   if (command === "init") {
@@ -98,17 +99,52 @@ async function main(): Promise<number> {
   return report.healthy ? 0 : 1;
 }
 
+function jsonWasRequested(): boolean {
+  const [command, ...args] = process.argv.slice(2);
+  return (command === "doctor" || command === "repair") && args.includes("--json");
+}
+
+function requestedTarget(): string {
+  const args = process.argv.slice(2);
+  const targetIndex = args.indexOf("--target");
+  const target = targetIndex >= 0 ? args[targetIndex + 1] : undefined;
+  return path.resolve(target && !target.startsWith("--") ? target : process.cwd());
+}
+
+function printStartupError(error: unknown): void {
+  const usage = error instanceof CliUsageError;
+  const message = error instanceof Error ? error.message : String(error);
+  if (jsonWasRequested()) {
+    const report: DoctorReport = {
+      schemaVersion: 1,
+      version: VERSION,
+      target: requestedTarget(),
+      healthy: false,
+      changed: false,
+      findings: [{
+        code: usage ? "CLI_USAGE_ERROR" : "CLI_STARTUP_ERROR",
+        severity: "error",
+        message,
+        repairable: false
+      }],
+      support: []
+    };
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  } else {
+    process.stderr.write(`repomemo: ${message}\n`);
+    if (!usage && process.env.REPOMEMO_DEBUG === "1" && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
+  }
+}
+
 main().then(
   (code) => { process.exitCode = code; },
   (error: unknown) => {
     if (error instanceof CliUsageError) {
-      process.stderr.write(`repomemo: ${error.message}\n`);
+      printStartupError(error);
       process.exitCode = 2;
       return;
     }
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`repomemo: ${message}\n`);
-    if (process.env.REPOMEMO_DEBUG === "1" && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
+    printStartupError(error);
     process.exitCode = 1;
   }
 );
