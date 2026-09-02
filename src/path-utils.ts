@@ -54,6 +54,16 @@ interface LockOwner {
   createdAt: number;
 }
 
+function sameLockSnapshot(before: Awaited<ReturnType<typeof stat>>, after: Awaited<ReturnType<typeof stat>>): boolean {
+  if (process.platform !== "win32") return before.dev === after.dev && before.ino === after.ino;
+  // Node's numeric dev/ino pair is not stable across an NTFS rename on every
+  // supported Windows runner. The file timestamps and size remain stable and
+  // still distinguish a replacement created between inspection and rename.
+  return before.size === after.size
+    && before.mtimeMs === after.mtimeMs
+    && before.birthtimeMs === after.birthtimeMs;
+}
+
 function parseLockOwner(content: string): LockOwner | undefined {
   try {
     const value = JSON.parse(content) as Partial<LockOwner>;
@@ -98,7 +108,7 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
           throw renameError;
         }
         const moved = await stat(quarantine).catch(() => undefined);
-        if (!moved || moved.dev !== lockDetails.dev || moved.ino !== lockDetails.ino) {
+        if (!moved || !sameLockSnapshot(lockDetails, moved)) {
           if (await pathKind(lockPath) === "missing") await rename(quarantine, lockPath).catch(() => undefined);
           throw new Error(`RepoMemo lock changed while stale ownership was being reclaimed for ${target}`);
         }

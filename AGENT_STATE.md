@@ -160,6 +160,10 @@ dependency, and fail-closed contract.
   live runtime passes. DSH's headless probe produced no output within 30 seconds and
   was terminated; only its installed source was counted. Gemini 0.1.12 was old enough
   to expose the newly recorded missing-version-boundary defect.
+- The first 2.0.2 release-candidate CI run `33605381845` passed macOS and Linux
+  but exposed that Node's numeric NTFS `dev`/`ino` identity is not stable across
+  every Windows rename. Stale-lock quarantine now uses stable size/timestamp
+  identity on Windows while retaining device/inode identity on POSIX.
 
 ## Touched Paths
 
