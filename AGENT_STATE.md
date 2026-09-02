@@ -1,8 +1,8 @@
 <!-- repomemo-state:v1 -->
 # Agent State
 
-- Status: active
-- Updated: 2026-09-02T08:49:01Z
+- Status: done
+- Updated: 2026-09-02T08:59:50Z
 - Last Harness: codex
 - Scope: .
 
@@ -121,6 +121,9 @@ dependency, and fail-closed contract.
   forces a fresh fail-closed scan, choosing and contender metadata publish by
   atomic rename, the elected writer holds a tokenized legacy sentinel throughout
   its action, and cleanup retries transient Windows filesystem errors.
+- Published RepoMemo 2.0.3 from commit `5e3f30c`: annotated tag and GitHub Release,
+  public npm `latest`, and Homebrew tap commit `25763e1`. All release assets and
+  public npm/Homebrew installation paths were independently verified.
 
 ## Decisions
 
@@ -196,6 +199,10 @@ dependency, and fail-closed contract.
   exposed a transient post-rename read failure during legacy stale-lock quarantine;
   the bounded retry keeps the migration fail closed without reporting a false
   content change or abandoning the recoverable lock.
+- Local Homebrew reinstall and strict audit were blocked by the host's outdated
+  Command Line Tools on pre-release macOS 27. The formula download and checksum
+  succeeded locally, and clean Homebrew CI completed install, test, style, and
+  strict audit instead; the existing local 1.3.0 binary was left untouched.
 - The narrow transient-read fix passed all six jobs in run `33609416745`; final
   white-box review then identified and closed the broader uncertain-snapshot and
   live old-binary compatibility windows before tagging.
@@ -323,9 +330,18 @@ dependency, and fail-closed contract.
   quarantine regressions. The complete seven-test lock suite passed 100 consecutive
   repetitions, and an independent final white-box review found no remaining
   mutual-exclusion release blocker for RepoMemo's sub-24-hour command boundary.
+- Hosted CI run `33610910568` passed all six macOS, Ubuntu, and Windows jobs on
+  Node.js 22/24. GitHub Release workflow `33611163394` published three assets;
+  the downloaded checksum manifest verified both `repomemo.js` and the npm tarball.
+- Public npm reports `repomemo@2.0.3` as `latest`; a fresh non-Git directory passed
+  public `npx` version, init, and healthy doctor checks.
+- Homebrew tap CI run `33611595728` passed clean install, formula test, style, and
+  strict audit for 2.0.3. The formula uses the GitHub asset digest
+  `ebc969471de60b48799c4e89f12a79ef1d99cd9300bd02da301606a3c0771131`.
+- Six reappearing untracked v1.3 iCloud conflict copies were preserved outside
+  the repository at `/Users/sun/Documents/myRepo/repomemo-conflict-files-20260902`.
 
 ## Next Action
 
-Commit and push the validated 2.0.3 source, publish tag and release artifacts,
-publish npm, update the Homebrew formula, then verify every public endpoint and
-record the resulting release identifiers.
+No active release work remains. Start the next change from the public 2.0.3
+baseline and retain the same multi-platform verification gates.
