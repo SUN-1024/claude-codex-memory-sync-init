@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: done
-- Updated: 2026-09-02T04:20:25Z
+- Updated: 2026-09-02T04:23:23Z
 - Last Harness: codex
 - Scope: .
 
@@ -47,6 +47,8 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   Agent Native and Harness Native positioning.
 - Corrected the legacy-repair and installed-package link assertions to compare
   filesystem canonical realpaths across POSIX symlinks and Windows junctions.
+- Made the `npx` entrypoint smoke invoke the Windows `.cmd` shim through the
+  Windows shell and report underlying spawn errors while keeping POSIX direct execution.
 
 ## Decisions
 
@@ -83,6 +85,9 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Follow-up run `33590277330` exposed Windows 8.3 short-path versus long-path
   spellings for the same junction destination; the final assertions compare
   `realpath` values on both sides rather than textual path representations.
+- Run `33590445805` passed Windows verification and package smoke, then exposed
+  that Node cannot directly spawn the `npx.cmd` shim without a Windows shell;
+  only the internally generated Windows smoke invocation now uses that shell.
 
 ## Touched Paths
 

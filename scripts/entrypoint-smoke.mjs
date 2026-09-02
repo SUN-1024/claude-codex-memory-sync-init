@@ -3,9 +3,11 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
-function run(command, args) {
-  const result = spawnSync(command, args, { encoding: "utf8" });
-  if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed\n${result.stdout ?? ""}${result.stderr ?? ""}`);
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, { encoding: "utf8", ...options });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed\n${result.error?.stack ?? ""}${result.stdout ?? ""}${result.stderr ?? ""}`);
+  }
   return result.stdout.trim();
 }
 
@@ -27,9 +29,10 @@ try {
   run(process.execPath, [packageManager, "dlx", uniqueTarball, "repair", "--help"]);
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const npxOutput = run(npx, ["--yes", "--package", uniqueTarball, "repomemo", "--version"]);
+  const npxOptions = process.platform === "win32" ? { shell: true, windowsHide: true } : {};
+  const npxOutput = run(npx, ["--yes", "--package", uniqueTarball, "repomemo", "--version"], npxOptions);
   if (npxOutput !== expectedOutput) throw new Error(`npx reported an unexpected version: ${npxOutput}`);
-  run(npx, ["--yes", "--package", uniqueTarball, "repomemo", "repair", "--help"]);
+  run(npx, ["--yes", "--package", uniqueTarball, "repomemo", "repair", "--help"], npxOptions);
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }
