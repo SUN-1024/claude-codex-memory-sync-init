@@ -1,4 +1,4 @@
-import { chmod, link, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -54,19 +54,6 @@ interface LockOwner {
   createdAt: number;
 }
 
-function sameLockSnapshot(
-  before: Awaited<ReturnType<typeof stat>>,
-  after: Awaited<ReturnType<typeof stat>>,
-  beforeContent: string,
-  afterContent: string
-): boolean {
-  if (process.platform !== "win32") return before.dev === after.dev && before.ino === after.ino;
-  // Node's numeric dev/ino pair and timestamps are not stable across an NTFS
-  // rename on every supported Windows runner. RepoMemo publishes only complete
-  // owner records with unique tokens, so exact bytes identify the moved lock.
-  return beforeContent === afterContent;
-}
-
 function parseLockOwner(content: string): LockOwner | undefined {
   try {
     const value = JSON.parse(content) as Partial<LockOwner>;
@@ -79,62 +66,75 @@ function parseLockOwner(content: string): LockOwner | undefined {
 
 export async function withProjectInitLock<T>(target: string, action: () => Promise<T>): Promise<T> {
   const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
-  const lockPath = path.join(os.tmpdir(), `repomemo-init-${digest}.lock`);
+  const temporaryRoot = os.tmpdir();
+  const legacyLockPath = path.join(temporaryRoot, `repomemo-init-${digest}.lock`);
+  const contenderPrefix = `repomemo-init-${digest}.contender-`;
   const token = randomUUID();
   const owner: LockOwner = { pid: process.pid, token, createdAt: Date.now() };
   const deadline = Date.now() + 15_000;
-  const candidatePath = `${lockPath}.candidate-${token}`;
+  const contenderPath = path.join(temporaryRoot, `${contenderPrefix}${token}`);
+  const candidatePath = `${contenderPath}.candidate`;
 
-  while (true) {
-    try {
-      // Publish a fully-written owner record atomically. A hard link is an
-      // exclusive create when lockPath is absent and never exposes an empty or
-      // partially-written lock to a concurrent stale-lock cleaner.
-      await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
-      try {
-        await link(candidatePath, lockPath);
-      } finally {
-        await unlink(candidatePath).catch(() => undefined);
-      }
-      break;
-    } catch (error) {
-      await unlink(candidatePath).catch(() => undefined);
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const existingContent = await readFile(lockPath, "utf8").catch(() => "");
-      const existing = parseLockOwner(existingContent);
-      const lockDetails = await stat(lockPath).catch(() => undefined);
-      const age = lockDetails ? Date.now() - lockDetails.mtimeMs : 0;
-      const stale = existing
-        ? !processIsAlive(existing.pid)
-        : age > 5_000;
-      if (stale) {
-        if (!lockDetails) continue;
-        const quarantine = `${lockPath}.stale-${randomUUID()}`;
-        try {
-          await rename(lockPath, quarantine);
-        } catch (renameError) {
-          if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue;
-          throw renameError;
-        }
-        const moved = await stat(quarantine).catch(() => undefined);
-        const movedContent = await readFile(quarantine, "utf8").catch(() => "");
-        if (!moved || !sameLockSnapshot(lockDetails, moved, existingContent, movedContent)) {
-          if (await pathKind(lockPath) === "missing") await rename(quarantine, lockPath).catch(() => undefined);
-          throw new Error(`RepoMemo lock changed while stale ownership was being reclaimed for ${target}`);
-        }
-        await unlink(quarantine);
-        continue;
-      }
-      if (Date.now() >= deadline) throw new Error(`timed out waiting for another RepoMemo init on ${target}`);
-      await new Promise((resolve) => setTimeout(resolve, 25 + Math.floor(Math.random() * 25)));
-    }
+  await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  try {
+    await rename(candidatePath, contenderPath);
+  } catch (error) {
+    await unlink(candidatePath).catch(() => undefined);
+    throw error;
   }
 
   try {
+    while (true) {
+      const contenders: LockOwner[] = [];
+      for (const name of await readdir(temporaryRoot)) {
+        if (!name.startsWith(contenderPrefix) || name.endsWith(".candidate")) continue;
+        const contender = path.join(temporaryRoot, name);
+        const content = await readFile(contender, "utf8").catch(() => "");
+        const parsed = parseLockOwner(content);
+        const details = await stat(contender).catch(() => undefined);
+        if (!details) continue;
+        const stale = parsed ? !processIsAlive(parsed.pid) : Date.now() - details.mtimeMs > 5_000;
+        if (stale) {
+          await unlink(contender).catch(() => undefined);
+          continue;
+        }
+        if (parsed) contenders.push(parsed);
+      }
+      contenders.sort((left, right) => left.createdAt - right.createdAt || left.token.localeCompare(right.token));
+
+      if (contenders[0]?.token === token) {
+        const legacyContent = await readFile(legacyLockPath, "utf8").catch(() => undefined);
+        if (legacyContent === undefined) break;
+        const legacyOwner = parseLockOwner(legacyContent);
+        const legacyDetails = await stat(legacyLockPath).catch(() => undefined);
+        const legacyStale = legacyOwner
+          ? !processIsAlive(legacyOwner.pid)
+          : legacyDetails !== undefined && Date.now() - legacyDetails.mtimeMs > 5_000;
+        if (legacyStale && legacyDetails) {
+          const quarantine = `${legacyLockPath}.stale-${token}`;
+          try {
+            await rename(legacyLockPath, quarantine);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+          }
+          const movedContent = await readFile(quarantine, "utf8").catch(() => undefined);
+          if (movedContent !== legacyContent) {
+            if (await pathKind(legacyLockPath) === "missing") await rename(quarantine, legacyLockPath).catch(() => undefined);
+            throw new Error(`RepoMemo legacy lock changed while stale ownership was being reclaimed for ${target}`);
+          }
+          await unlink(quarantine);
+          continue;
+        }
+      }
+
+      if (Date.now() >= deadline) throw new Error(`timed out waiting for another RepoMemo init on ${target}`);
+      await new Promise((resolve) => setTimeout(resolve, 25 + Math.floor(Math.random() * 25)));
+    }
+
     return await action();
   } finally {
-    const existing = parseLockOwner(await readFile(lockPath, "utf8").catch(() => ""));
-    if (existing?.token === token) await unlink(lockPath).catch(() => undefined);
+    await unlink(contenderPath).catch(() => undefined);
   }
 }
 

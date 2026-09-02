@@ -168,6 +168,10 @@ dependency, and fail-closed contract.
   portable identity boundary. The final lock protocol writes a complete unique
   candidate first and atomically publishes it with a same-volume hard link;
   Windows quarantine validation compares the unique owner bytes.
+- Run `33606193721` proved that any reused fixed lock path still lacks a portable
+  compare-and-swap boundary. The final protocol uses unique contender files and
+  deterministic election; only the elected contender inspects a legacy fixed
+  lock, and no current writer ever deletes another writer's reusable path.
 
 ## Touched Paths
 
