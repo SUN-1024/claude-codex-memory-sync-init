@@ -9,7 +9,7 @@ RepoMemo 可以让新项目或已经做到一半的项目成为 **Agent Native**
 Codex、Claude Code、Gemini CLI、OpenCode、Cursor、Copilot CLI、ZCode 和
 DeepSeek Harness 可以读取同一套信息。
 
-![RepoMemo 2.0 把 RepoMemo 1.0 与规则转换工具的痛点收敛为三个命令的 Agent Native 工作流](./docs/assets/repomemo-2.0-overview.png)
+![RepoMemo 2.0：在同一个项目中无缝切换受支持的 Agent Harness 并继续工作](./docs/assets/repomemo-2.0-overview.zh.png)
 
 ## 为什么是 RepoMemo 2.0
 

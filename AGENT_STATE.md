@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: done
-- Updated: 2026-09-02T05:21:01Z
+- Updated: 2026-09-02T05:24:33Z
 - Last Harness: codex
 - Scope: .
 
@@ -69,6 +69,8 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   checks, checksum verification, and atomic wrapper replacement.
 - Published the RepoMemo 2.0 positioning infographic, synchronized bilingual
   landing-page copy, and all four standard/China installer entrypoints to `main`.
+- Replaced the shared infographic with user-provided, language-specific English
+  and Chinese campaign images and wired each README to its matching asset.
 - Kept Claude Code's required `.claude/skills` compatibility link while removing
   only ZCode's obsolete alias; runtime link behavior now derives from the Harness
   registry so code and generated compatibility matrices cannot silently diverge.
@@ -154,7 +156,7 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - TypeScript v2.0.1 suite: 35 passed, 0 failed.
 - Typecheck and generated support-matrix check passed.
 - All 16 registry documentation URLs returned HTTP 200 through the configured proxy.
-- `pnpm pack` produced the intended thirteen files; fresh tarball install, CLI binary,
+- `pnpm pack` produced the intended fourteen files; fresh tarball install, CLI binary,
   init, doctor, canonical repair, legacy repair alias, `pnpm dlx`, and `npx` passed.
 - Remote `origin/main` still matches baseline `0338cf0`; no rebase is needed.
 - GitHub and npm authentication succeeded for `SUN-1024` and `sun1024`.
@@ -199,7 +201,7 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   reproducers for ZCode duplication, strict UTF-8, fenced/inline imports, invalid
   Skills, vendor Skill adoption, stale placeholders, stable JSON errors, broad
   targets, scan exclusions, transactional staging, and concurrent init.
-- The new thirteen-file 2.0.1 tarball passes package, `pnpm dlx`, `npx`, repeated
+- The new fourteen-file 2.0.1 tarball passes package, `pnpm dlx`, `npx`, repeated
   global/China installer, production audit, and self-doctor checks on macOS.
 - A forced-private China bootstrap downloaded checksum-verified Node v24.20.0
   from npmmirror and installed RepoMemo 2.0.1 into paths with spaces without
@@ -216,6 +218,9 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   jsDelivr China entrypoint downloaded the standard installer, installed 2.0.1
   from the verified package artifact into paths with spaces, initialized a
   realistic in-progress project, and returned a healthy eight-Harness report.
+- Both localized replacement images are byte-identical to the supplied PNGs;
+  48/48 verification passes twice, and the fourteen-file package smoke test
+  confirms that both assets ship in the npm tarball.
 
 ## Next Action
 

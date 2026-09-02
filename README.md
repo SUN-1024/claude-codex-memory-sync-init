@@ -9,7 +9,7 @@ RepoMemo makes a new or already-in-progress project **Agent Native** and
 Skills in the project itself, so Codex, Claude Code, Gemini CLI, OpenCode,
 Cursor, Copilot CLI, ZCode, and DeepSeek Harness can work from the same sources.
 
-![RepoMemo 2.0 turns RepoMemo 1.0 and rule-converter pain points into a three-command Agent Native workflow](./docs/assets/repomemo-2.0-overview.png)
+![RepoMemo 2.0: seamlessly switch between supported Agent Harnesses and continue working from the same project](./docs/assets/repomemo-2.0-overview.en.png)
 
 ## Why RepoMemo 2.0
 

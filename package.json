@@ -37,7 +37,8 @@
     "install-cn.sh",
     "install.ps1",
     "install-cn.ps1",
-    "docs/assets/repomemo-2.0-overview.png",
+    "docs/assets/repomemo-2.0-overview.en.png",
+    "docs/assets/repomemo-2.0-overview.zh.png",
     "MIGRATION-v1-v2.md",
     "LICENSE"
   ],
