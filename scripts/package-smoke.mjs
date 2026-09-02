@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readlink, readdir, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -37,8 +37,9 @@ try {
   const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "zcode", "--json"]);
   if (!JSON.parse(repair.stdout).changed) throw new Error("installed package repair did not report a change");
   const linkPath = path.join(project, ".zcode", "skills");
-  const resolvedLink = path.resolve(path.dirname(linkPath), await readlink(linkPath));
-  if (resolvedLink !== path.join(project, ".agents", "skills")) throw new Error("installed package repair did not restore the canonical skills link");
+  if (await realpath(linkPath) !== await realpath(path.join(project, ".agents", "skills"))) {
+    throw new Error("installed package repair did not restore the canonical skills link");
+  }
   const agents = await readFile(path.join(project, "AGENTS.md"), "utf8");
   if (!agents.includes("repomemo:start")) throw new Error("installed package did not initialize AGENTS.md");
   process.stdout.write(`package smoke passed: ${tarball}\n`);

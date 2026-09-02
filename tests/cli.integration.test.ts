@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, readFile, readlink, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -309,8 +309,8 @@ test("legacy doctor --repair remains a backward-compatible alias", async (t) => 
   assert.equal(JSON.parse(legacy.stdout).changed, true);
   const linkPath = path.join(target, ".zcode", "skills");
   assert.equal(
-    path.resolve(path.dirname(linkPath), await readlink(linkPath)),
-    path.join(target, ".agents", "skills")
+    await realpath(linkPath),
+    await realpath(path.join(target, ".agents", "skills"))
   );
 });
 

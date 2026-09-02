@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: done
-- Updated: 2026-09-02T04:17:34Z
+- Updated: 2026-09-02T04:20:25Z
 - Last Harness: codex
 - Scope: .
 
@@ -46,7 +46,7 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Updated the live GitHub description and repository topics to match the same
   Agent Native and Harness Native positioning.
 - Corrected the legacy-repair and installed-package link assertions to compare
-  resolved canonical targets across POSIX symlinks and Windows junctions.
+  filesystem canonical realpaths across POSIX symlinks and Windows junctions.
 
 ## Decisions
 
@@ -79,7 +79,10 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   unrecognized model. Cursor, Copilot CLI, and ZCode executables are not installed.
 - Hosted CI run `33590116620` exposed a test-only Windows assumption: the test
   expected a POSIX relative symlink string, while Windows correctly returned an
-  absolute junction target. The assertions now compare resolved destinations.
+  absolute junction target.
+- Follow-up run `33590277330` exposed Windows 8.3 short-path versus long-path
+  spellings for the same junction destination; the final assertions compare
+  `realpath` values on both sides rather than textual path representations.
 
 ## Touched Paths
 
