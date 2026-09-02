@@ -65,6 +65,21 @@ function parseLockOwner(content: string): LockOwner | undefined {
   return undefined;
 }
 
+async function readRenamedLock(filePath: string): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      return await readFile(filePath, "utf8");
+    } catch (error) {
+      lastError = error;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!new Set(["EACCES", "EBUSY", "ENOENT", "EPERM"]).has(code ?? "") || attempt === 5) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** attempt));
+    }
+  }
+  throw lastError;
+}
+
 export async function withProjectInitLock<T>(target: string, action: () => Promise<T>): Promise<T> {
   const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
   const temporaryRoot = os.tmpdir();
@@ -147,7 +162,11 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
             if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
             throw error;
           }
-          const movedContent = await readFile(quarantine, "utf8").catch(() => undefined);
+          // Windows can briefly report a renamed file as unavailable even after
+          // rename() has completed. Retry only those transient filesystem errors;
+          // treating every read failure as a content mismatch creates a false
+          // fail-closed error and can strand an otherwise recoverable stale lock.
+          const movedContent = await readRenamedLock(quarantine);
           if (movedContent !== legacyContent) {
             if (await pathKind(legacyLockPath) === "missing") await rename(quarantine, legacyLockPath).catch(() => undefined);
             throw new Error(`RepoMemo legacy lock changed while stale ownership was being reclaimed for ${target}`);

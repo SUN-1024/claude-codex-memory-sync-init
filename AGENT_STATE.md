@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: active
-- Updated: 2026-09-02T07:47:14Z
+- Updated: 2026-09-02T08:33:43Z
 - Last Harness: codex
 - Scope: .
 
@@ -115,6 +115,8 @@ dependency, and fail-closed contract.
 - Closed the final lock-artifact cleanup gaps: dead pre-publication candidates
   and choosing files are reclaimed, and setup failure removes any contender that
   was already published by that same unique token.
+- Made legacy stale-lock quarantine tolerate the short post-rename visibility
+  window observed on Windows while preserving byte-for-byte owner validation.
 
 ## Decisions
 
@@ -186,6 +188,10 @@ dependency, and fail-closed contract.
   repeated macOS prepack exposed that arrival-time ordering alone can admit a
   delayed earlier-ranked contender. The lock now uses an explicit choosing phase
   and Lamport-style `(ticket, token)` ordering.
+- Run `33608743328` passed five of six platform/runtime jobs but Windows Node 22
+  exposed a transient post-rename read failure during legacy stale-lock quarantine;
+  the bounded retry keeps the migration fail closed without reporting a false
+  content change or abandoning the recoverable lock.
 
 ## Touched Paths
 
@@ -306,6 +312,8 @@ dependency, and fail-closed contract.
   or Homebrew update was performed in this local closure goal.
 - The release-gate suite now passes 65/65 locally; the focused lock suite passed
   50 consecutive repetitions, followed by package and entrypoint smoke tests.
+- The expanded suite passes 67/67 locally after lock-artifact cleanup, and the
+  Windows quarantine fix passed 100 consecutive focused stale-cleaner runs.
 
 ## Next Action
 
