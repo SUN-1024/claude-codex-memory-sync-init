@@ -36,11 +36,23 @@ and no conversion pipeline in the middle.
 
 ## Start in 30 seconds
 
-Run this once inside any new or existing project:
+Choose either route, then initialize RepoMemo inside any new or existing
+project.
+
+Without installing it globally:
 
 ```bash
 cd my-project
 npx repomemo@latest init
+```
+
+With Homebrew on macOS or Linux:
+
+```bash
+brew tap SUN-1024/repomemo
+brew install repomemo
+cd my-project
+repomemo init
 ```
 
 Then open the same directory with any supported Harness:
@@ -129,6 +141,19 @@ malformed or ambiguous markers fail closed instead of being overwritten.
 
 ## Install
 
+### Homebrew (macOS or Linux)
+
+If Homebrew is already available, it can install RepoMemo and its required
+Node.js runtime:
+
+```bash
+brew tap SUN-1024/repomemo
+brew install repomemo
+```
+
+Then run `repomemo init` inside your project. Later releases can be installed
+with `brew update && brew upgrade repomemo`.
+
 ### One-click: no Node, npm, Git, or Homebrew required
 
 macOS or Linux:
@@ -177,7 +202,7 @@ Windows PowerShell:
 irm https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.ps1 | iex
 ```
 
-### Existing package manager
+### Node.js package managers
 
 No global installation:
 
@@ -194,15 +219,11 @@ npm install --global repomemo
 
 # npm with the China registry
 npm install --global repomemo --registry=https://registry.npmmirror.com
-
-# Homebrew
-brew tap SUN-1024/repomemo
-brew install repomemo
 ```
 
-Package-manager installation requires Node.js 22 or newer. RepoMemo itself has
-zero runtime dependencies. After installation, `init`, `doctor`, and `repair`
-operate locally without Git or network calls.
+The Node.js package-manager routes require Node.js 22 or newer. RepoMemo itself
+has zero runtime dependencies. After installation, `init`, `doctor`, and
+`repair` operate locally without Git or network calls.
 
 ## Upgrade without rebuilding the project
 

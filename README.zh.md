@@ -34,11 +34,22 @@ RepoMemo 2.0 选择更小、更直接的契约：
 
 ## 30 秒开始
 
-在任何新项目或已有项目中运行一次：
+任选一种方式，然后在任何新项目或已有项目中初始化 RepoMemo。
+
+无需全局安装：
 
 ```bash
 cd 你的项目
 npx repomemo@latest init
+```
+
+macOS 或 Linux 已安装 Homebrew：
+
+```bash
+brew tap SUN-1024/repomemo
+brew install repomemo
+cd 你的项目
+repomemo init
 ```
 
 然后直接用任意受支持的 Harness 打开同一个目录：
@@ -121,6 +132,18 @@ canonical Skill 根目录的旧别名。
 
 ## 安装
 
+### Homebrew（macOS 或 Linux）
+
+如果系统已经安装 Homebrew，可以用它同时安装 RepoMemo 和所需的 Node.js 运行时：
+
+```bash
+brew tap SUN-1024/repomemo
+brew install repomemo
+```
+
+然后进入项目目录运行 `repomemo init`。后续版本可通过
+`brew update && brew upgrade repomemo` 升级。
+
 ### 一键安装：不要求 Node、npm、Git 或 Homebrew
 
 macOS 或 Linux：中国大陆推荐直接使用中国镜像版：
@@ -163,7 +186,7 @@ curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh |
 irm https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.ps1 | iex
 ```
 
-### 已有包管理器
+### Node.js 包管理器
 
 无需全局安装：
 
@@ -180,14 +203,10 @@ npm install --global repomemo
 
 # npm 中国镜像
 npm install --global repomemo --registry=https://registry.npmmirror.com
-
-# Homebrew
-brew tap SUN-1024/repomemo
-brew install repomemo
 ```
 
-包管理器安装方式需要 Node.js 22 或更高版本。RepoMemo 自身运行时依赖为零；
-安装完成后，`init`、`doctor`、`repair` 都不会调用 Git 或网络。
+通过 Node.js 包管理器安装需要 Node.js 22 或更高版本。RepoMemo 自身运行时依赖
+为零；安装完成后，`init`、`doctor`、`repair` 都不会调用 Git 或网络。
 
 ## 已有项目直接升级
 
