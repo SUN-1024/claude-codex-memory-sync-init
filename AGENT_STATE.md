@@ -2,7 +2,7 @@
 # Agent State
 
 - Status: active
-- Updated: 2026-09-02T08:33:43Z
+- Updated: 2026-09-02T08:49:01Z
 - Last Harness: codex
 - Scope: .
 
@@ -117,6 +117,10 @@ dependency, and fail-closed contract.
   was already published by that same unique token.
 - Made legacy stale-lock quarantine tolerate the short post-rename visibility
   window observed on Windows while preserving byte-for-byte owner validation.
+- Completed the lock protocol's cross-version boundary: every uncertain artifact
+  forces a fresh fail-closed scan, choosing and contender metadata publish by
+  atomic rename, the elected writer holds a tokenized legacy sentinel throughout
+  its action, and cleanup retries transient Windows filesystem errors.
 
 ## Decisions
 
@@ -192,6 +196,9 @@ dependency, and fail-closed contract.
   exposed a transient post-rename read failure during legacy stale-lock quarantine;
   the bounded retry keeps the migration fail closed without reporting a false
   content change or abandoning the recoverable lock.
+- The narrow transient-read fix passed all six jobs in run `33609416745`; final
+  white-box review then identified and closed the broader uncertain-snapshot and
+  live old-binary compatibility windows before tagging.
 
 ## Touched Paths
 
@@ -312,8 +319,10 @@ dependency, and fail-closed contract.
   or Homebrew update was performed in this local closure goal.
 - The release-gate suite now passes 65/65 locally; the focused lock suite passed
   50 consecutive repetitions, followed by package and entrypoint smoke tests.
-- The expanded suite passes 67/67 locally after lock-artifact cleanup, and the
-  Windows quarantine fix passed 100 consecutive focused stale-cleaner runs.
+- The expanded suite passes 69/69 locally after adding legacy-sentinel and live-
+  quarantine regressions. The complete seven-test lock suite passed 100 consecutive
+  repetitions, and an independent final white-box review found no remaining
+  mutual-exclusion release blocker for RepoMemo's sub-24-hour command boundary.
 
 ## Next Action
 

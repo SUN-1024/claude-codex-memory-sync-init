@@ -1,4 +1,5 @@
-import { chmod, lstat, mkdir, readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -65,19 +66,98 @@ function parseLockOwner(content: string): LockOwner | undefined {
   return undefined;
 }
 
-async function readRenamedLock(filePath: string): Promise<string> {
-  let lastError: unknown;
+const TRANSIENT_LOCK_ERRORS = new Set(["EACCES", "EBUSY", "EPERM"]);
+
+async function waitForLockRetry(attempt: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** attempt));
+}
+
+async function readLockFile(filePath: string, retryMissing = false): Promise<string | undefined> {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       return await readFile(filePath, "utf8");
     } catch (error) {
-      lastError = error;
       const code = (error as NodeJS.ErrnoException).code;
-      if (!new Set(["EACCES", "EBUSY", "ENOENT", "EPERM"]).has(code ?? "") || attempt === 5) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** attempt));
+      if (code === "ENOENT" && !retryMissing) return undefined;
+      if ((code !== "ENOENT" && !TRANSIENT_LOCK_ERRORS.has(code ?? "")) || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
     }
   }
-  throw lastError;
+  return undefined;
+}
+
+async function statLockFile(filePath: string): Promise<Stats | undefined> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      return await stat(filePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return undefined;
+      if (!TRANSIENT_LOCK_ERRORS.has(code ?? "") || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
+    }
+  }
+  return undefined;
+}
+
+async function removeLockFile(filePath: string): Promise<void> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await unlink(filePath);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return;
+      if (!TRANSIENT_LOCK_ERRORS.has(code ?? "") || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
+    }
+  }
+}
+
+async function createLockFile(filePath: string, content: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await writeFile(filePath, content, { encoding: "utf8", flag: "wx", mode: 0o600 });
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EEXIST") return false;
+      if (!TRANSIENT_LOCK_ERRORS.has(code ?? "") || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
+    }
+  }
+  return false;
+}
+
+async function moveLockFile(source: string, destination: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await rename(source, destination);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return false;
+      if (!TRANSIENT_LOCK_ERRORS.has(code ?? "") || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
+    }
+  }
+  return false;
+}
+
+async function restoreLockWithoutOverwrite(quarantine: string, lockPath: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await link(quarantine, lockPath);
+      break;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EEXIST") return false;
+      if (!TRANSIENT_LOCK_ERRORS.has(code ?? "") || attempt === 5) throw error;
+      await waitForLockRetry(attempt);
+    }
+  }
+  await removeLockFile(quarantine);
+  return true;
 }
 
 export async function withProjectInitLock<T>(target: string, action: () => Promise<T>): Promise<T> {
@@ -92,23 +172,30 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
   const contenderPath = path.join(temporaryRoot, `${contenderPrefix}${token}`);
   const candidatePath = `${contenderPath}.candidate`;
   const choosingPath = path.join(temporaryRoot, `${choosingPrefix}${token}`);
+  const choosingCandidatePath = `${choosingPath}.candidate`;
+  let legacyOwnerContent = "";
 
   try {
-    await writeFile(choosingPath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    if (!await createLockFile(choosingCandidatePath, `${JSON.stringify(owner)}\n`)) throw new Error(`RepoMemo lock chooser already exists for ${target}`);
+    if (!await moveLockFile(choosingCandidatePath, choosingPath)) throw new Error(`RepoMemo lock chooser disappeared before publication for ${target}`);
     let maximumTicket = 0;
     for (const name of await readdir(temporaryRoot)) {
       if (!name.startsWith(contenderPrefix) || name.endsWith(".candidate")) continue;
-      const parsed = parseLockOwner(await readFile(path.join(temporaryRoot, name), "utf8").catch(() => ""));
+      const content = await readLockFile(path.join(temporaryRoot, name));
+      const parsed = content === undefined ? undefined : parseLockOwner(content);
       maximumTicket = Math.max(maximumTicket, parsed?.ticket ?? 0);
     }
     owner = { ...owner, ticket: maximumTicket + 1 };
-    await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
-    await rename(candidatePath, contenderPath);
-    await unlink(choosingPath);
+    legacyOwnerContent = `${JSON.stringify({ ...owner, createdAt: Date.now() + 86_400_000 })}\n`;
+    if (!await createLockFile(candidatePath, `${JSON.stringify(owner)}\n`)) throw new Error(`RepoMemo lock candidate already exists for ${target}`);
+    if (!await moveLockFile(candidatePath, contenderPath)) throw new Error(`RepoMemo lock candidate disappeared before publication for ${target}`);
+    await removeLockFile(choosingPath);
   } catch (error) {
-    await unlink(candidatePath).catch(() => undefined);
-    await unlink(choosingPath).catch(() => undefined);
-    await unlink(contenderPath).catch(() => undefined);
+    const cleanup = await Promise.allSettled([candidatePath, choosingCandidatePath, choosingPath, contenderPath].map(removeLockFile));
+    const cleanupErrors = cleanup
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason);
+    if (cleanupErrors.length > 0) throw new AggregateError([error, ...cleanupErrors], `RepoMemo lock setup and cleanup both failed for ${target}`);
     throw error;
   }
 
@@ -116,62 +203,95 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
     while (true) {
       const contenders: LockOwner[] = [];
       let anotherChoosing = false;
+      let electionSnapshotChanged = false;
       for (const name of await readdir(temporaryRoot)) {
         const isChoosing = name.startsWith(choosingPrefix);
         const isCandidate = name.startsWith(contenderPrefix) && name.endsWith(".candidate");
         const isContender = name.startsWith(contenderPrefix) && !isCandidate;
-        if (isCandidate) {
-          const candidate = path.join(temporaryRoot, name);
-          const content = await readFile(candidate, "utf8").catch(() => "");
-          const parsed = parseLockOwner(content);
-          const details = await stat(candidate).catch(() => undefined);
-          if (details && (parsed ? !processIsAlive(parsed.pid) : Date.now() - details.mtimeMs > 5_000)) {
-            await unlink(candidate).catch(() => undefined);
-          }
+        if (!isChoosing && !isCandidate && !isContender) continue;
+        const contender = path.join(temporaryRoot, name);
+        const content = await readLockFile(contender);
+        if (content === undefined) {
+          electionSnapshotChanged = true;
           continue;
         }
-        if (!isChoosing && !isContender) continue;
-        const contender = path.join(temporaryRoot, name);
-        const content = await readFile(contender, "utf8").catch(() => "");
         const parsed = parseLockOwner(content);
-        const details = await stat(contender).catch(() => undefined);
-        if (!details) continue;
+        const details = await statLockFile(contender);
+        if (!details) {
+          electionSnapshotChanged = true;
+          continue;
+        }
         const stale = parsed ? !processIsAlive(parsed.pid) : Date.now() - details.mtimeMs > 5_000;
         if (stale) {
-          await unlink(contender).catch(() => undefined);
+          await removeLockFile(contender);
           continue;
         }
-        if (isChoosing) anotherChoosing = true;
+        if (isChoosing || isCandidate) anotherChoosing = true;
         else if (parsed) contenders.push(parsed);
+        else throw new Error(`RepoMemo found an unreadable active lock contender for ${target}`);
       }
       contenders.sort((left, right) => (left.ticket ?? 0) - (right.ticket ?? 0) || left.token.localeCompare(right.token));
 
+      if (electionSnapshotChanged) {
+        if (Date.now() >= deadline) throw new Error(`timed out waiting for another RepoMemo init on ${target}`);
+        await new Promise((resolve) => setTimeout(resolve, 25 + Math.floor(Math.random() * 25)));
+        continue;
+      }
+
       if (!anotherChoosing && contenders[0]?.token === token) {
-        const legacyContent = await readFile(legacyLockPath, "utf8").catch(() => undefined);
-        if (legacyContent === undefined) break;
+        let quarantineBlocked = false;
+        let quarantineSnapshotChanged = false;
+        const legacyBase = path.basename(legacyLockPath);
+        for (const name of await readdir(temporaryRoot)) {
+          if (!name.startsWith(`${legacyBase}.stale-`) && !name.startsWith(`${legacyBase}.quarantine-`) && !name.startsWith(`${legacyBase}.release-`)) continue;
+          const quarantinePath = path.join(temporaryRoot, name);
+          const quarantineContent = await readLockFile(quarantinePath);
+          if (quarantineContent === undefined) {
+            quarantineSnapshotChanged = true;
+            continue;
+          }
+          const quarantineOwner = parseLockOwner(quarantineContent);
+          const quarantineDetails = await statLockFile(quarantinePath);
+          if (!quarantineDetails) {
+            quarantineSnapshotChanged = true;
+            continue;
+          }
+          const quarantineStale = quarantineOwner ? !processIsAlive(quarantineOwner.pid) : Date.now() - quarantineDetails.mtimeMs > 5_000;
+          if (quarantineStale) await removeLockFile(quarantinePath);
+          else quarantineBlocked = true;
+        }
+        if (quarantineBlocked || quarantineSnapshotChanged) {
+          if (Date.now() >= deadline) throw new Error(`timed out waiting for another RepoMemo init on ${target}`);
+          await new Promise((resolve) => setTimeout(resolve, 25 + Math.floor(Math.random() * 25)));
+          continue;
+        }
+
+        // Older RepoMemo releases reclaimed a live fixed-path lock after five
+        // minutes. A future-dated compatibility lease keeps those releases out
+        // for a full day; a crashed owner is still reclaimed immediately by PID.
+        if (await createLockFile(legacyLockPath, legacyOwnerContent)) break;
+
+        const legacyContent = await readLockFile(legacyLockPath);
+        if (legacyContent === undefined) continue;
         const legacyOwner = parseLockOwner(legacyContent);
-        const legacyDetails = await stat(legacyLockPath).catch(() => undefined);
+        const legacyDetails = await statLockFile(legacyLockPath);
         const legacyStale = legacyOwner
           ? !processIsAlive(legacyOwner.pid)
           : legacyDetails !== undefined && Date.now() - legacyDetails.mtimeMs > 5_000;
         if (legacyStale && legacyDetails) {
-          const quarantine = `${legacyLockPath}.stale-${token}`;
-          try {
-            await rename(legacyLockPath, quarantine);
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-            throw error;
-          }
-          // Windows can briefly report a renamed file as unavailable even after
-          // rename() has completed. Retry only those transient filesystem errors;
-          // treating every read failure as a content mismatch creates a false
-          // fail-closed error and can strand an otherwise recoverable stale lock.
-          const movedContent = await readRenamedLock(quarantine);
+          const quarantine = `${legacyLockPath}.quarantine-${token}`;
+          if (!await moveLockFile(legacyLockPath, quarantine)) continue;
+          const movedContent = await readLockFile(quarantine, true);
+          if (movedContent === undefined) throw new Error(`RepoMemo could not verify a quarantined legacy lock for ${target}`);
           if (movedContent !== legacyContent) {
-            if (await pathKind(legacyLockPath) === "missing") await rename(quarantine, legacyLockPath).catch(() => undefined);
+            const movedOwner = parseLockOwner(movedContent);
+            const movedDetails = await statLockFile(quarantine);
+            const movedStale = movedOwner ? !processIsAlive(movedOwner.pid) : movedDetails !== undefined && Date.now() - movedDetails.mtimeMs > 5_000;
+            if (movedStale) await removeLockFile(quarantine);
+            else await restoreLockWithoutOverwrite(quarantine, legacyLockPath);
             throw new Error(`RepoMemo legacy lock changed while stale ownership was being reclaimed for ${target}`);
           }
-          await unlink(quarantine);
+          await removeLockFile(quarantine);
           continue;
         }
       }
@@ -180,11 +300,22 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
       await new Promise((resolve) => setTimeout(resolve, 25 + Math.floor(Math.random() * 25)));
     }
 
-    return await action();
+    try {
+      return await action();
+    } finally {
+      const releasePath = `${legacyLockPath}.release-${token}`;
+      if (!await moveLockFile(legacyLockPath, releasePath)) throw new Error(`RepoMemo legacy lock disappeared before release for ${target}`);
+      const releasedContent = await readLockFile(releasePath, true);
+      if (releasedContent !== legacyOwnerContent) {
+        await restoreLockWithoutOverwrite(releasePath, legacyLockPath);
+        throw new Error(`RepoMemo legacy lock ownership changed before release for ${target}`);
+      }
+      await removeLockFile(releasePath);
+    }
   } finally {
-    await unlink(choosingPath).catch(() => undefined);
-    await unlink(candidatePath).catch(() => undefined);
-    await unlink(contenderPath).catch(() => undefined);
+    const cleanup = await Promise.allSettled([choosingCandidatePath, choosingPath, candidatePath, contenderPath].map(removeLockFile));
+    const failures = cleanup.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length > 0) throw new AggregateError(failures.map((result) => result.reason), `RepoMemo could not clean up its project lock for ${target}`);
   }
 }
 

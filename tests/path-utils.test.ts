@@ -60,6 +60,48 @@ test("init locking never steals an old lock from a live owner", async (t) => {
   assert.equal(entered, true);
 });
 
+test("init locking holds the legacy sentinel throughout the action", async (t) => {
+  const target = await mkdtemp(path.join(os.tmpdir(), "repomemo-legacy-sentinel-target-"));
+  const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
+  const lockPath = path.join(os.tmpdir(), `repomemo-init-${digest}.lock`);
+  t.after(async () => {
+    await rm(target, { recursive: true, force: true });
+    await rm(lockPath, { force: true });
+  });
+
+  await withProjectInitLock(target, async () => {
+    const owner = JSON.parse(await readFile(lockPath, "utf8")) as { pid: number; token: string };
+    assert.equal(owner.pid, process.pid);
+    assert.ok(owner.token.length > 0);
+    await assert.rejects(
+      writeFile(lockPath, "legacy contender\n", { encoding: "utf8", flag: "wx" }),
+      (error: NodeJS.ErrnoException) => error.code === "EEXIST"
+    );
+  });
+  await assert.rejects(readFile(lockPath, "utf8"));
+});
+
+test("a live quarantined legacy owner remains a blocking lock", async (t) => {
+  const target = await mkdtemp(path.join(os.tmpdir(), "repomemo-live-quarantine-target-"));
+  const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
+  const lockPath = path.join(os.tmpdir(), `repomemo-init-${digest}.lock`);
+  const quarantine = `${lockPath}.quarantine-live-owner`;
+  t.after(async () => {
+    await rm(target, { recursive: true, force: true });
+    await rm(lockPath, { force: true });
+    await rm(quarantine, { force: true });
+  });
+  await writeFile(quarantine, `${JSON.stringify({ pid: process.pid, token: "live-owner", createdAt: Date.now() })}\n`, { mode: 0o600 });
+
+  let entered = false;
+  const waiting = withProjectInitLock(target, async () => { entered = true; });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(entered, false);
+  await rm(quarantine, { force: true });
+  await waiting;
+  assert.equal(entered, true);
+});
+
 test("concurrent stale-lock cleaners still serialize writers", async (t) => {
   const target = await mkdtemp(path.join(os.tmpdir(), "repomemo-stale-cleaner-target-"));
   const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
