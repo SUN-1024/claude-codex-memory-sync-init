@@ -58,7 +58,7 @@ function parseFlags(args: string[], command: "init" | "doctor" | "repair"): Comm
   return result;
 }
 
-function printDoctor(report: DoctorReport): void {
+function printDoctor(report: DoctorReport, command: "doctor" | "repair"): void {
   for (const finding of report.findings) {
     const location = finding.path ? ` ${finding.path}` : "";
     const harness = finding.harness ? ` [${finding.harness}]` : "";
@@ -66,7 +66,7 @@ function printDoctor(report: DoctorReport): void {
   }
   process.stdout.write("\nHarness support:\n");
   for (const adapter of report.support) process.stdout.write(`  ${adapter.id.padEnd(10)} rules=${adapter.rules.mode.padEnd(11)} skills=${adapter.skills.mode.padEnd(11)} evidence=${adapter.evidence.level}\n`);
-  process.stdout.write(`\nRepoMemo doctor: ${report.healthy ? "healthy" : "issues found"}${report.changed ? " (repaired)" : ""}\n`);
+  process.stdout.write(`\nRepoMemo ${command}: ${report.healthy ? "healthy" : "issues found"}${report.changed ? " (repaired)" : ""}\n`);
 }
 
 async function main(): Promise<number> {
@@ -95,7 +95,7 @@ async function main(): Promise<number> {
 
   const report = await runDoctor(target, { repair: flags.repair, ...(flags.harness ? { harness: flags.harness } : {}) });
   if (flags.json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  else printDoctor(report);
+  else printDoctor(report, command);
   return report.healthy ? 0 : 1;
 }
 

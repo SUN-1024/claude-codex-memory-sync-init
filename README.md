@@ -223,7 +223,7 @@ RepoMemo aliases that point exactly to the canonical root are also removed. A
 name collision or foreign link fails closed with exact manual guidance.
 Repeating `init` should report `0 change(s)`.
 
-RepoMemo 2.0.2 stages obsolete aliases before changing managed text or adopting
+RepoMemo 2.0.3 stages obsolete aliases before changing managed text or adopting
 Skills. If any stage fails, the earlier stages are rolled back and `repair
 --json` still returns a structured error. Project initialization also refuses
 filesystem roots, the user home directory, the active OS temporary directory,

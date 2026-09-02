@@ -434,6 +434,15 @@ test("legacy doctor --repair remains a backward-compatible alias", async (t) => 
   await assert.rejects(readlink(path.join(target, ".claude", "skills")));
 });
 
+test("text repair identifies the repair command in its summary", async (t) => {
+  const { target } = await initialized(t);
+  await unlink(path.join(target, "CLAUDE.md"));
+  const result = runCli(["repair", "--target", target, "--harness", "claude"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /RepoMemo repair: healthy \(repaired\)/u);
+  assert.doesNotMatch(result.stdout, /RepoMemo doctor:/u);
+});
+
 test("strict UTF-8 validation fails closed and doctor keeps JSON parseable", async (t) => {
   const { target } = await fixture(t);
   const filePath = path.join(target, "AGENTS.md");

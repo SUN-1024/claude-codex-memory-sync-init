@@ -8,7 +8,7 @@
 
 ## Goal
 
-Publish the fully validated RepoMemo 2.0.2 closure to GitHub and npm, create the
+Publish the fully validated RepoMemo 2.0.3 closure to GitHub and npm, create the
 version tag and GitHub Release, update the Homebrew tap, and verify each public
 installation path without weakening the offline, Git-neutral, zero-runtime-
 dependency, and fail-closed contract.
@@ -109,6 +109,9 @@ dependency, and fail-closed contract.
   contract errors stop before any bridge, alias, or Skill mutation. Startup usage
   failures now preserve JSON mode, `repair` reports its own option errors, and the
   redundant `repair --repair` spelling is rejected.
+- Corrected direct text-mode `repair` summaries to identify the actual command;
+  2.0.3 supersedes the short-lived GitHub-only 2.0.2 release before npm or
+  Homebrew publication.
 
 ## Decisions
 
@@ -303,6 +306,6 @@ dependency, and fail-closed contract.
 
 ## Next Action
 
-Commit and push the validated 2.0.2 source, publish tag and release artifacts,
+Commit and push the validated 2.0.3 source, publish tag and release artifacts,
 publish npm, update the Homebrew formula, then verify every public endpoint and
 record the resulting release identifiers.
