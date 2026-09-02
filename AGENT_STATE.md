@@ -1,8 +1,8 @@
 <!-- repomemo-state:v1 -->
 # Agent State
 
-- Status: done
-- Updated: 2026-09-02T04:26:25Z
+- Status: active
+- Updated: 2026-09-02T05:04:28Z
 - Last Harness: codex
 - Scope: .
 
@@ -36,8 +36,7 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Hardened package smoke tests against stale `pnpm dlx` tarball caching by using
   unique package paths and by exercising the installed `repair` command.
 - Updated the GitHub repository description to match the current Git-neutral v2 design.
-- Retained full real-case evidence under
-  `/Users/sun/Documents/myRepo/repomemo-e2e-cases-20260902`.
+- Retained full real-case evidence outside the repository in a dated QA bundle.
 - Reframed the bilingual GitHub landing pages and one-minute guides around the
   concise Agent Harness, Agent Native, and Harness Native model: initialize once,
   keep continuity in the project, and switch Harnesses without conversion.
@@ -49,6 +48,33 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   filesystem canonical realpaths across POSIX symlinks and Windows junctions.
 - Made the `npx` entrypoint smoke invoke the Windows `.cmd` shim through the
   Windows shell and report underlying spawn errors while keeping POSIX direct execution.
+- Added user-local macOS/Linux and Windows one-click installers plus China
+  entrypoints that automatically select npmmirror for Node.js and npm packages.
+- Added installer smoke coverage for global and China modes, project paths with
+  spaces, version, init, doctor, repair, shell syntax, and persisted PATH text.
+- Expanded both README installation sections with one-click, China-mirror, npx,
+  pnpm, npm, China npm registry, and Homebrew paths.
+- Added a generated RepoMemo 2.0 README infographic and a bilingual positioning
+  section contrasting the v1/manual and converter-heavy workflows with the
+  three-command Agent Native and Harness Native contract.
+- Fixed every product-actionable finding from the independent adversarial pass:
+  ZCode now uses `.agents/skills` natively and old exact links are removed;
+  Markdown-aware Claude/Gemini import detection ignores code regions and accepts
+  inline imports; non-UTF-8 text fails closed; Skills receive portable schema
+  checks; vendor Skill directories can be adopted without byte changes; staged
+  file writes roll back; broad targets, JSON I/O failures, placeholder state,
+  generated-directory scans, concurrent links, and evidence versions are handled.
+- Hardened China bootstrap delivery with full-download-before-execute semantics,
+  jsDelivr/GitHub fallback, Node.js 24 LTS, x64 musl Linux support, absolute-path
+  checks, checksum verification, and atomic wrapper replacement.
+- Completed an independent, repository-external adversarial QA pass against a
+  realistic mid-development TypeScript project, with no RepoMemo product-code changes.
+- Confirmed three release-significant defects: the current ZCode bridge creates
+  duplicate Skill discovery, non-UTF-8 managed files are silently corrupted, and
+  bridge import detection can disagree with real Harness Markdown/import semantics.
+- Confirmed additional robustness gaps around invalid Skill structure, cross-Harness
+  discovery overlap, partial writes, broad targets, JSON error output, placeholder
+  state detection, nested-directory performance, and concurrent-init warnings.
 
 ## Decisions
 
@@ -61,6 +87,9 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   upgrades, or configures third-party Harness runtimes.
 - Preserve user-authored rules, state, and skills during both mid-project adoption
   and compatible upgrades; fail closed on ambiguous managed markers.
+- Keep bootstrap networking outside the RepoMemo CLI: the optional root installers
+  install a private checksum-verified Node/npm runtime without Git, Homebrew,
+  system Node replacement, or sudo; CLI commands remain local and offline.
 
 ## Failed Attempts
 
@@ -88,6 +117,12 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - Run `33590445805` passed Windows verification and package smoke, then exposed
   that Node cannot directly spawn the `npx.cmd` shim without a Windows shell;
   only the internally generated Windows smoke invocation now uses that shell.
+- ZCode GUI automation could not initialize the local app-server; the installed
+  application's embedded CLI and implementation were used for read-only catalog verification.
+- OpenCode model execution was blocked by its own SQLite schema error; Gemini by
+  missing authentication; ZCode model execution by missing model configuration;
+  Claude Code, Cursor, and Copilot CLIs were not installed. These are coverage
+  limits, not RepoMemo defects.
 
 ## Touched Paths
 
@@ -102,6 +137,10 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - `README.zh.md`
 - `QUICKSTART.md`
 - `QUICKSTART.zh.md`
+- `install.sh`
+- `install-cn.sh`
+- `install.ps1`
+- `install-cn.ps1`
 - `MIGRATION-v1-v2.md`
 
 ## Validation
@@ -110,7 +149,7 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
 - TypeScript v2.0.1 suite: 35 passed, 0 failed.
 - Typecheck and generated support-matrix check passed.
 - All 16 registry documentation URLs returned HTTP 200 through the configured proxy.
-- `pnpm pack` produced the intended eight files; fresh tarball install, CLI binary,
+- `pnpm pack` produced the intended thirteen files; fresh tarball install, CLI binary,
   init, doctor, canonical repair, legacy repair alias, `pnpm dlx`, and `npx` passed.
 - Remote `origin/main` still matches baseline `0338cf0`; no rebase is needed.
 - GitHub and npm authentication succeeded for `SUN-1024` and `sun1024`.
@@ -140,10 +179,34 @@ safe in-place upgrades, and honest cross-Harness diagnosis and recovery.
   whitespace validation; all four guides remain included in the 2.0.1 tarball.
 - Hosted CI run `33590636163` passed all six macOS, Linux, and Windows jobs on
   Node 22/24, including verification, package smoke, `pnpm dlx`, and `npx`.
+- Standard and China installer smoke passed locally on macOS using the packaged
+  2.0.1 tarball. A forced-private-runtime China case downloaded Node v22.23.2
+  from npmmirror, verified SHA-256, installed without system npm/Homebrew/Git,
+  and produced a healthy initialized project under the retained E2E evidence directory.
+- The adversarial black-box suite produced one full round-trip pass and eight
+  targeted issue reproductions; all eight Harness-filtered doctors stayed healthy
+  in the valid realistic fixture, and repeated init remained byte-idempotent.
+- Live read-only model checks passed in Codex 0.151.0-alpha.7.2 and DSH
+  0.1.2-alpha.4 for the same rule, Next Action, and Skill nonce.
+- Independent package validation passed 35/35 tests, typecheck, support-matrix
+  synchronization, tarball smoke, `pnpm dlx`, `npx`, self-doctor, and production audit.
+- The repaired suite now passes 47/47 tests, including the former adversarial
+  reproducers for ZCode duplication, strict UTF-8, fenced/inline imports, invalid
+  Skills, vendor Skill adoption, stale placeholders, stable JSON errors, broad
+  targets, scan exclusions, transactional staging, and concurrent init.
+- The new thirteen-file 2.0.1 tarball passes package, `pnpm dlx`, `npx`, repeated
+  global/China installer, production audit, and self-doctor checks on macOS.
+- A forced-private China bootstrap downloaded checksum-verified Node v24.20.0
+  from npmmirror and installed RepoMemo 2.0.1 into paths with spaces without
+  system Node/npm, Git, Homebrew, or sudo. Evidence remains outside the repository.
+- A retained real 2.0.0-to-2.0.1 in-place upgrade removed the obsolete ZCode
+  bridge, preserved source/Skill/state hashes, converged to `0 change(s)`, and
+  passed doctor in the external QA bundle.
 
 ## Next Action
 
-Publish a new immutable `v2.0.1` GitHub, npm, and Homebrew release only with
-explicit release authorization. No code or documentation fix is pending;
-third-party Harness authentication/model/runtime issues remain outside
-RepoMemo's safe scope.
+Commit and push the completed 2.0.1 implementation, installation scripts,
+infographic, and bilingual documentation. Require all six hosted macOS/Linux/
+Windows Node 22/24 jobs (including PowerShell installer smoke) to pass, then
+verify the live README and China delivery URL. Keep npm, GitHub Release, and
+Homebrew 2.0.1 publication behind explicit release authorization.

@@ -95,15 +95,21 @@ export function validateState(content: string): Finding[] {
     if (count !== 1) findings.push(finding("STATE_SECTION_INVALID", "error", `Expected exactly one section: ${section}.`));
   }
 
-  if (
-    status === "idle"
-    && sectionBody(content, "Goal") === "No active task."
-    && sectionBody(content, "Next Action") === "Start the next task from the current filesystem state."
-  ) {
+  const bootstrapSections = [
+    ["Goal", "No active task."],
+    ["Completed", "- None."],
+    ["Decisions", "- None."],
+    ["Failed Attempts", "- None."],
+    ["Touched Paths", "- None."],
+    ["Validation", "- Not run."],
+    ["Next Action", "Start the next task from the current filesystem state."]
+  ] as const;
+  const unchangedBootstrap = bootstrapSections.filter(([name, placeholder]) => sectionBody(content, name) === placeholder);
+  if (unchangedBootstrap.length > 0) {
     findings.push(finding(
       "STATE_BOOTSTRAP_PLACEHOLDER",
       "warning",
-      "AGENT_STATE.md still contains the bootstrap placeholder; record current progress before switching Harnesses."
+      `AGENT_STATE.md still contains bootstrap text in: ${unchangedBootstrap.map(([name]) => name).join(", ")}. Record current progress before switching Harnesses.`
     ));
   }
 

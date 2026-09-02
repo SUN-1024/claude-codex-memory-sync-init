@@ -1,4 +1,5 @@
 import packageJson from "../package.json" with { type: "json" };
+import type { LinkSpec } from "./links.js";
 
 export const VERSION = packageJson.version;
 
@@ -35,7 +36,9 @@ its own folder with a \`SKILL.md\` file. Harness-specific paths may point here,
 but skill content must not be copied into those paths.
 `;
 
-export const LINK_SPECS = [
+export const LINK_SPECS: readonly LinkSpec[] = [];
+
+export const DEPRECATED_LINK_SPECS: readonly LinkSpec[] = [
   { harness: "claude", link: ".claude/skills", target: ".agents/skills" },
   { harness: "zcode", link: ".zcode/skills", target: ".agents/skills" }
-] as const;
+];

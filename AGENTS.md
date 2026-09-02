@@ -26,6 +26,8 @@ agent governance and continuity contract without using Git or the network.
 - `data/harnesses.json` is the compatibility and evidence registry.
 - `scripts/` contains build, test, matrix, and package-maintenance tooling; none
   of these scripts are public RepoMemo commands.
+- Root `install*.sh` and `install*.ps1` files are audited convenience installers,
+  separate from the offline, Git-neutral CLI command surface.
 - `tests/` contains unit and cross-platform integration tests.
 
 <!-- repomemo:start -->

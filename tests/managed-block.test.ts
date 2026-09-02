@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyManagedBlock, inspectManagedBlock } from "../src/managed-block.js";
+import { applyManagedBlock, hasClaudeAgentsImport, hasGeminiAgentsImport, inspectManagedBlock } from "../src/managed-block.js";
 
 const markers = { start: "<!-- start -->", end: "<!-- end -->" };
 const block = "<!-- start -->\nnew\n<!-- end -->";
@@ -36,4 +36,14 @@ test("equivalent unmanaged bridge remains untouched", () => {
   const result = applyManagedBlock("@AGENTS.md\n", block, markers, (content) => content.includes("@AGENTS.md"));
   assert.equal(result.kind, "unchanged");
   assert.equal(result.managed, false);
+});
+
+test("Harness imports support inline prose and ignore Markdown code regions", () => {
+  for (const detector of [hasClaudeAgentsImport, hasGeminiAgentsImport]) {
+    assert.equal(detector("Read @AGENTS.md before working.\n"), true);
+    assert.equal(detector("See @./AGENTS.md, then continue.\n"), true);
+    assert.equal(detector("`@AGENTS.md` is an example.\n"), false);
+    assert.equal(detector("```md\n@AGENTS.md\n```\n"), false);
+    assert.equal(detector("~~~\n@./AGENTS.md\n~~~\n"), false);
+  }
 });

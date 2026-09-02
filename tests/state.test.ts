@@ -12,8 +12,18 @@ test("populated in-progress state clears the bootstrap warning", () => {
   const state = createState()
     .replace("Status: idle", "Status: active")
     .replace("No active task.", "Implement the current feature.")
+    .replace("## Completed\n\n- None.", "## Completed\n\n- Initial investigation complete.")
+    .replace("## Decisions\n\n- None.", "## Decisions\n\n- Preserve compatibility.")
+    .replace("## Failed Attempts\n\n- None.", "## Failed Attempts\n\n- No failures yet.")
+    .replace("## Touched Paths\n\n- None.", "## Touched Paths\n\n- `src/`")
+    .replace("- Not run.", "- Unit tests passed.")
     .replace("Start the next task from the current filesystem state.", "Continue from the verified test failure.");
   assert.ok(!validateState(state).some((entry) => entry.code === "STATE_BOOTSTRAP_PLACEHOLDER"));
+});
+
+test("changing status alone never hides bootstrap placeholders", () => {
+  const findings = validateState(createState().replace("Status: idle", "Status: active"));
+  assert.ok(findings.some((entry) => entry.code === "STATE_BOOTSTRAP_PLACEHOLDER"));
 });
 
 test("state rejects invalid status, timestamp, and escaping paths", () => {

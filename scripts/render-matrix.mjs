@@ -3,8 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 const adapters = JSON.parse(await readFile(new URL("../data/harnesses.json", import.meta.url), "utf8"));
 const start = "<!-- repomemo:matrix:start -->";
 const end = "<!-- repomemo:matrix:end -->";
-const header = "| Harness | Rules | Skills | Evidence |\n|---|---|---|---|";
-const rows = adapters.map((adapter) => `| ${adapter.name} | ${adapter.rules.mode} | ${adapter.skills.mode} | ${adapter.evidence.level} |`).join("\n");
+const header = "| Harness | Rules | Skills | Evidence | Verified version |\n|---|---|---|---|---|";
+const rows = adapters.map((adapter) => `| ${adapter.name} | ${adapter.rules.mode} | ${adapter.skills.mode} | ${adapter.evidence.level} | ${adapter.evidence.verifiedVersion ?? "docs only"} |`).join("\n");
 const block = `${start}\n${header}\n${rows}\n${end}`;
 const check = process.argv.includes("--check");
 

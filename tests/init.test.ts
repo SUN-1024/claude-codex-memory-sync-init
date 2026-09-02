@@ -15,12 +15,12 @@ test("link creation failure becomes an honest manual fallback", async (t) => {
     createLink: async () => { throw new Error("simulated link denial"); }
   });
 
-  assert.equal(result.findings.filter((finding) => finding.code === "SKILLS_LINK_MANUAL_FALLBACK").length, 2);
+  assert.equal(result.findings.filter((finding) => finding.code === "SKILLS_LINK_MANUAL_FALLBACK").length, 1);
   assert.deepEqual(
     result.findings.map((finding) => finding.harness),
-    ["claude", "zcode"]
+    ["claude"]
   );
-  assert.ok(result.findings.every((finding) => finding.message.includes("manual AGENTS.md fallback")));
+  assert.ok(result.findings.every((finding) => finding.message.includes("read .agents/skills manually")));
   assert.equal(result.changes.some((change) => change.startsWith("LINK ")), false);
   assert.match(await readFile(path.join(target, "AGENTS.md"), "utf8"), /repomemo:start/u);
   await assert.rejects(readlink(path.join(target, ".claude", "skills")));

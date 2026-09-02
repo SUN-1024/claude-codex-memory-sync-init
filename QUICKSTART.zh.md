@@ -12,6 +12,9 @@ cd 你的项目
 npx repomemo@latest init
 ```
 
+电脑还没有 Node.js 或 npm？请直接使用 [README 一键安装](./README.zh.md#安装)，
+其中包含 macOS、Linux、Windows 的中国镜像版。
+
 Git 完全可选。完成这一步后，切换 Coding Agent 时不需要再运行 RepoMemo。
 同一个命令也可以用于已经做到一半的项目，不需要重建项目。
 

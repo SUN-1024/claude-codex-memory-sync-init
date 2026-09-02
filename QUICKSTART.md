@@ -13,6 +13,9 @@ cd my-project
 npx repomemo@latest init
 ```
 
+No Node.js or npm yet? Use the macOS/Linux/Windows one-click installer in the
+[README](./README.md#install). A China-mirror installer is included.
+
 Git is optional. After this step, RepoMemo does not need to run when you
 switch coding agents. The same command also works halfway through an existing
 project without rebuilding it.

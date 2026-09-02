@@ -9,6 +9,29 @@ RepoMemo 可以让新项目或已经做到一半的项目成为 **Agent Native**
 Codex、Claude Code、Gemini CLI、OpenCode、Cursor、Copilot CLI、ZCode 和
 DeepSeek Harness 可以读取同一套信息。
 
+![RepoMemo 2.0 把 RepoMemo 1.0 与规则转换工具的痛点收敛为三个命令的 Agent Native 工作流](./docs/assets/repomemo-2.0-overview.png)
+
+## 为什么是 RepoMemo 2.0
+
+RepoMemo 1.0 支持的 Harness 较少，手工接入步骤也更多。Rule Sync、Converter
+一类工具解决的是另一种更重的问题：在多套 Harness 私有配置之间反复映射和转换。
+大型迁移有时确实需要它们，但对更常见的场景——临时换一个 Coding Agent，在现有
+项目上修一个问题、补一点功能——转换规则、同步步骤和格式漂移反而增加了复杂度与
+出错点。
+
+RepoMemo 2.0 选择更小、更直接的契约：
+
+- **只初始化一次：** 新项目和已经开发到一半的项目都能原地接入。
+- **项目只保留一份持久事实：** 规则、交接状态和 Skills 跟着项目走，而不是困在
+  某一个 Harness 的会话里。
+- **切换就是打开同一个目录：** 把下一个受支持的 Harness 对准项目文件夹即可继续，
+  每次切换都不需要 `convert`。
+- **始终只有三个命令：** `init`、`doctor`、`repair` 覆盖接入、诊断、兼容升级与
+  安全修复。
+
+这就是这里所说的 **Agent Native** 与 **Harness Native**：优先使用大家原生支持的
+共享文件，只在确有必要时加一层最薄的兼容桥，中间不再放一套转换流水线。
+
 ## 30 秒开始
 
 在任何新项目或已有项目中运行一次：
@@ -75,7 +98,7 @@ repomemo repair
 repomemo init --target path/to/project
 repomemo doctor --harness claude
 repomemo doctor --json
-repomemo repair --harness zcode
+repomemo repair --harness claude
 ```
 
 旧脚本仍可使用 `doctor --repair` 兼容别名。`doctor` 显示 healthy 代表磁盘文件
@@ -90,8 +113,7 @@ repomemo repair --harness zcode
 ├── .agents/skills/        # 可复用 Agent Skills
 ├── CLAUDE.md              # 必要时使用的极薄桥
 ├── GEMINI.md              # 必要时使用的极薄桥
-├── .claude/skills         # 支持时创建本地链接
-└── .zcode/skills          # 支持时创建本地链接
+└── .claude/skills         # Claude Code 所需的本地链接
 ```
 
 用户只维护前三个共享源。RepoMemo 只管理带明确标记的区块和安全兼容链接。
@@ -99,25 +121,73 @@ repomemo repair --harness zcode
 
 ## 安装
 
-推荐方式，无需全局安装：
+### 一键安装：不要求 Node、npm、Git 或 Homebrew
+
+macOS 或 Linux：中国大陆推荐直接使用中国镜像版：
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.sh | sh
+
+# 没有 curl 但有 wget
+wget -qO- https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.sh | sh
+```
+
+Windows PowerShell：中国大陆镜像版：
+
+```powershell
+irm https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.ps1 | iex
+```
+
+中国版会先在 jsDelivr 与 GitHub 脚本源之间自动回退，再使用 npmmirror 的
+Node.js 二进制镜像和 `registry.npmmirror.com`，不需要用户手工配置 npm 镜像。
+基础脚本会完整下载成功后才执行，下载失败不会被误报为安装成功。
+
+安装器会优先复用本机 Node.js 22 或更高版本。如果电脑没有 Node/npm，它会
+自动在当前用户目录安装一套隔离的当前 Node.js LTS/npm（本版本为 Node.js 24），使用
+`SHASUMS256.txt` 校验下载文件，然后安装 RepoMemo 并加入用户 `PATH`。
+支持 macOS Intel/Apple 芯片、Windows x64/ARM64、glibc Linux x64/ARM64 与
+musl Linux x64。整个过程不需要 Git、Homebrew 或 `sudo`，也不会替换系统 Node。
+
+操作系统仍需提供最基础的下载入口：Windows 使用 PowerShell；macOS/Linux
+使用 `sh` 加 `curl` 或 `wget`。对安全要求较高时，可以先下载并检查脚本，再执行。
+
+海外网络的一键入口：
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.ps1 | iex
+```
+
+### 已有包管理器
+
+无需全局安装：
 
 ```bash
 npx repomemo@latest init
+pnpm dlx repomemo@latest init
 ```
 
-也可以永久安装：
+永久安装：
 
 ```bash
 # npm
 npm install --global repomemo
+
+# npm 中国镜像
+npm install --global repomemo --registry=https://registry.npmmirror.com
 
 # Homebrew
 brew tap SUN-1024/repomemo
 brew install repomemo
 ```
 
-RepoMemo 需要 Node.js 22 或更高版本，运行时依赖为零。第一次通过 `npx` 下载
-需要网络；CLI 安装到本地后，`init`、`doctor`、`repair` 都不会调用 Git 或网络。
+包管理器安装方式需要 Node.js 22 或更高版本。RepoMemo 自身运行时依赖为零；
+安装完成后，`init`、`doctor`、`repair` 都不会调用 Git 或网络。
 
 ## 已有项目直接升级
 
@@ -130,7 +200,11 @@ npx repomemo@latest doctor
 ```
 
 兼容升级只更新 RepoMemo 托管区块和缺失的桥，保留源码、用户文字、
-`AGENT_STATE.md` 和 `.agents/skills`。再次执行 `init` 应显示 `0 change(s)`。
+`AGENT_STATE.md` 和 `.agents/skills`。中途接入时，如果发现已有的
+`.claude/skills` 或 `.zcode/skills` 目录且 Skill 名称不冲突，RepoMemo 会把其中
+内容逐字节原地归并到 `.agents/skills`；Claude 旧路径会变成链接，已经不需要的
+ZCode 旧路径会移除。名称冲突时会安全停止并给出明确处理提示。再次执行 `init`
+应显示 `0 change(s)`。
 
 ## Harness 兼容性
 
@@ -139,16 +213,16 @@ npx repomemo@latest doctor
 [`data/harnesses.json`](./data/harnesses.json) 生成。
 
 <!-- repomemo:matrix:start -->
-| Harness | Rules | Skills | Evidence |
-|---|---|---|---|
-| Codex | native | native | official |
-| Claude Code | bridge | bridge | official |
-| Gemini CLI | bridge | native | official |
-| OpenCode | native | native | official |
-| Cursor | native | native | official |
-| GitHub Copilot CLI | native | native | official |
-| ZCode | native | bridge | official |
-| DeepSeek Harness | native | native | source-verified |
+| Harness | Rules | Skills | Evidence | Verified version |
+|---|---|---|---|---|
+| Codex | native | native | official-smoke | 0.151.0-alpha.7.2 |
+| Claude Code | bridge | bridge | official | docs only |
+| Gemini CLI | bridge | native | official | docs only |
+| OpenCode | native | native | official-smoke | 1.17.7 (catalog) |
+| Cursor | native | native | official | docs only |
+| GitHub Copilot CLI | native | native | official | docs only |
+| ZCode | native | native | official-smoke | CLI 0.16.5 / App 3.10.2 |
+| DeepSeek Harness | native | native | source-verified | 0.1.2-alpha.4 |
 <!-- repomemo:matrix:end -->
 
 RepoMemo 本身保持 Git-neutral。个别 Harness 版本仍可能依赖 `.git` 或其他标记
@@ -175,6 +249,7 @@ pnpm verify
 pnpm pack --pack-destination artifacts
 pnpm package:smoke
 pnpm entrypoint:smoke
+pnpm installer:smoke
 ```
 
 参见 [CONTRIBUTING.md](./CONTRIBUTING.md)。CI 覆盖 macOS、Linux、Windows

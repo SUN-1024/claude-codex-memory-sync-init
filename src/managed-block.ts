@@ -76,9 +76,59 @@ export function applyManagedBlock(
   return { kind: content === existing ? "unchanged" : "updated", content, managed: true };
 }
 
-export function hasAgentsImport(content: string): boolean {
-  return content.split(/\r?\n/u).some((line) => {
-    const normalized = line.trim();
-    return normalized === "@AGENTS.md" || normalized === "@./AGENTS.md";
-  });
+function stripInlineCode(line: string): string {
+  let output = "";
+  let index = 0;
+  while (index < line.length) {
+    if (line[index] !== "`") {
+      output += line[index];
+      index += 1;
+      continue;
+    }
+    let markerEnd = index;
+    while (line[markerEnd] === "`") markerEnd += 1;
+    const marker = line.slice(index, markerEnd);
+    const closing = line.indexOf(marker, markerEnd);
+    if (closing === -1) {
+      output += line.slice(index);
+      break;
+    }
+    output += " ".repeat(closing + marker.length - index);
+    index = closing + marker.length;
+  }
+  return output;
+}
+
+function markdownOutsideCode(content: string): string {
+  const output: string[] = [];
+  let fence: { character: "`" | "~"; length: number } | undefined;
+  for (const line of content.split(/\r?\n/u)) {
+    if (fence) {
+      const closing = new RegExp(`^ {0,3}${fence.character}{${fence.length},}[ \\t]*$`, "u");
+      if (closing.test(line)) fence = undefined;
+      output.push("");
+      continue;
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
+    if (opening?.[1]) {
+      fence = { character: opening[1][0] as "`" | "~", length: opening[1].length };
+      output.push("");
+      continue;
+    }
+    output.push(stripInlineCode(line));
+  }
+  return output.join("\n");
+}
+
+function hasMarkdownAgentsImport(content: string): boolean {
+  const prose = markdownOutsideCode(content);
+  return /(^|[\s([{:>\-])@(?:\.\/)?AGENTS\.md(?=$|[\s.,;:!?)}\]])/mu.test(prose);
+}
+
+export function hasClaudeAgentsImport(content: string): boolean {
+  return hasMarkdownAgentsImport(content);
+}
+
+export function hasGeminiAgentsImport(content: string): boolean {
+  return hasMarkdownAgentsImport(content);
 }

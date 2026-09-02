@@ -9,6 +9,31 @@ RepoMemo makes a new or already-in-progress project **Agent Native** and
 Skills in the project itself, so Codex, Claude Code, Gemini CLI, OpenCode,
 Cursor, Copilot CLI, ZCode, and DeepSeek Harness can work from the same sources.
 
+![RepoMemo 2.0 turns RepoMemo 1.0 and rule-converter pain points into a three-command Agent Native workflow](./docs/assets/repomemo-2.0-overview.png)
+
+## Why RepoMemo 2.0
+
+RepoMemo 1.0 supported fewer Harnesses and needed more manual setup. Rule-sync
+and converter tools solve a different, heavier problem: mapping many
+Harness-specific configurations back and forth. That can be useful for a large
+migration, but it adds conversion steps, drift, and failure points to the much
+more common workflow of opening an existing project in another coding agent for
+one focused task.
+
+RepoMemo 2.0 chooses a smaller contract:
+
+- **Initialize once:** adopt a new project or a project already in progress.
+- **Keep one durable project truth:** rules, handoff state, and Skills stay with
+  the project instead of one Harness session.
+- **Switch by opening the same folder:** point the next supported Harness at the
+  project and continue; there is no per-switch conversion command.
+- **Use only three commands:** `init`, `doctor`, and `repair` cover adoption,
+  diagnosis, compatible upgrades, and safe recovery.
+
+That is the practical meaning of **Agent Native** and **Harness Native** here:
+native shared files first, the thinnest necessary compatibility bridge second,
+and no conversion pipeline in the middle.
+
 ## Start in 30 seconds
 
 Run this once inside any new or existing project:
@@ -79,7 +104,7 @@ Useful forms:
 repomemo init --target path/to/project
 repomemo doctor --harness claude
 repomemo doctor --json
-repomemo repair --harness zcode
+repomemo repair --harness claude
 ```
 
 `doctor --repair` remains a compatibility alias for older scripts. A healthy
@@ -95,8 +120,7 @@ my-project/
 ├── .agents/skills/        # reusable Agent Skills
 ├── CLAUDE.md              # thin bridge when required
 ├── GEMINI.md              # thin bridge when required
-├── .claude/skills         # link when supported
-└── .zcode/skills          # link when supported
+└── .claude/skills         # link required by Claude Code
 ```
 
 You maintain the first three sources. RepoMemo owns only clearly marked blocks
@@ -105,26 +129,80 @@ malformed or ambiguous markers fail closed instead of being overwritten.
 
 ## Install
 
-The recommended path needs no global installation:
+### One-click: no Node, npm, Git, or Homebrew required
+
+macOS or Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/SUN-1024/repomemo/main/install.ps1 | iex
+```
+
+The installer uses an existing Node.js 22+ runtime when available. Otherwise it
+downloads a private current Node.js LTS runtime (Node.js 24 at this release)
+into the current user's directory, verifies the archive against Node.js
+`SHASUMS256.txt`, installs RepoMemo without `sudo`, and adds its small binary
+directory to the user `PATH`. It supports macOS Intel/Apple silicon, Windows
+x64/ARM64, glibc Linux x64/ARM64, and musl Linux x64. It does not install or
+require Git or Homebrew.
+
+A base operating-system shell and downloader are still necessary: PowerShell on
+Windows, or `sh` plus `curl`/`wget` on macOS and Linux. You may download and
+inspect the script before running it instead of piping it directly to the shell.
+
+### Mainland China one-click install
+
+The China entrypoints try jsDelivr and GitHub delivery sources, then automatically
+use the npmmirror Node.js binary mirror and `registry.npmmirror.com`; no npm
+mirror setup is required. The base script is fully downloaded before execution,
+so a failed download cannot be mistaken for a successful install.
+
+macOS or Linux:
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.sh | sh
+
+# wget alternative
+wget -qO- https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://cdn.jsdelivr.net/gh/SUN-1024/repomemo@main/install-cn.ps1 | iex
+```
+
+### Existing package manager
+
+No global installation:
 
 ```bash
 npx repomemo@latest init
+pnpm dlx repomemo@latest init
 ```
 
-Optional permanent installation:
+Permanent installation:
 
 ```bash
 # npm
 npm install --global repomemo
+
+# npm with the China registry
+npm install --global repomemo --registry=https://registry.npmmirror.com
 
 # Homebrew
 brew tap SUN-1024/repomemo
 brew install repomemo
 ```
 
-RepoMemo requires Node.js 22 or newer and has zero runtime dependencies. The
-first `npx` download needs network access; the installed CLI performs `init`,
-`doctor`, and `repair` locally without Git or network calls.
+Package-manager installation requires Node.js 22 or newer. RepoMemo itself has
+zero runtime dependencies. After installation, `init`, `doctor`, and `repair`
+operate locally without Git or network calls.
 
 ## Upgrade without rebuilding the project
 
@@ -138,7 +216,11 @@ npx repomemo@latest doctor
 
 Compatible upgrades update only RepoMemo-managed blocks and missing bridges.
 They preserve source files, user-authored text, `AGENT_STATE.md`, and
-`.agents/skills`. Repeating `init` should report `0 change(s)`.
+`.agents/skills`. If a mid-project adoption finds an existing `.claude/skills`
+or `.zcode/skills` directory with no name collision, it moves those entries
+byte-for-byte into `.agents/skills`; Claude's old path becomes a link and the
+obsolete ZCode path is removed. A name collision fails closed with exact manual
+guidance. Repeating `init` should report `0 change(s)`.
 
 ## Harness compatibility
 
@@ -147,16 +229,16 @@ import or local link. The registry and both README matrices are generated from
 [`data/harnesses.json`](./data/harnesses.json).
 
 <!-- repomemo:matrix:start -->
-| Harness | Rules | Skills | Evidence |
-|---|---|---|---|
-| Codex | native | native | official |
-| Claude Code | bridge | bridge | official |
-| Gemini CLI | bridge | native | official |
-| OpenCode | native | native | official |
-| Cursor | native | native | official |
-| GitHub Copilot CLI | native | native | official |
-| ZCode | native | bridge | official |
-| DeepSeek Harness | native | native | source-verified |
+| Harness | Rules | Skills | Evidence | Verified version |
+|---|---|---|---|---|
+| Codex | native | native | official-smoke | 0.151.0-alpha.7.2 |
+| Claude Code | bridge | bridge | official | docs only |
+| Gemini CLI | bridge | native | official | docs only |
+| OpenCode | native | native | official-smoke | 1.17.7 (catalog) |
+| Cursor | native | native | official | docs only |
+| GitHub Copilot CLI | native | native | official | docs only |
+| ZCode | native | native | official-smoke | CLI 0.16.5 / App 3.10.2 |
+| DeepSeek Harness | native | native | source-verified | 0.1.2-alpha.4 |
 <!-- repomemo:matrix:end -->
 
 RepoMemo itself is Git-neutral. Some Harness versions may use `.git` or other
@@ -184,6 +266,7 @@ pnpm verify
 pnpm pack --pack-destination artifacts
 pnpm package:smoke
 pnpm entrypoint:smoke
+pnpm installer:smoke
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md). CI covers macOS, Linux, Windows, and

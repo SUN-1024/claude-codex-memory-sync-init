@@ -31,3 +31,4 @@ jobs:
       - run: pnpm pack --pack-destination artifacts
       - run: pnpm package:smoke
       - run: pnpm entrypoint:smoke
+      - run: pnpm installer:smoke

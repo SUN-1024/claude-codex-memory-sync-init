@@ -33,6 +33,7 @@ pnpm verify
 pnpm pack --pack-destination artifacts
 pnpm package:smoke
 pnpm entrypoint:smoke
+pnpm installer:smoke
 node dist/cli.js doctor --target . --json
 ```
 

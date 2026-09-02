@@ -8,9 +8,10 @@
     "skills": { "mode": "native", "path": ".agents/skills" },
     "bridges": [],
     "evidence": {
-      "level": "official",
+      "level": "official-smoke",
       "docs": ["https://developers.openai.com/codex/guides/agents-md", "https://developers.openai.com/codex/skills"],
-      "verifiedDate": "2026-09-01"
+      "verifiedVersion": "0.151.0-alpha.7.2",
+      "verifiedDate": "2026-09-02"
     }
   },
   {
@@ -19,8 +20,8 @@
     "platforms": ["darwin", "linux", "win32"],
     "detection": { "commands": ["claude"], "projectMarkers": [".claude"] },
     "rules": { "mode": "bridge", "path": "CLAUDE.md", "mechanism": "@AGENTS.md import" },
-    "skills": { "mode": "bridge", "path": ".claude/skills", "mechanism": "link to .agents/skills; manual fallback" },
-    "bridges": ["CLAUDE.md", ".claude/skills"],
+    "skills": { "mode": "manual", "path": ".agents/skills", "mechanism": "AGENTS.md instruction imported through CLAUDE.md; no duplicate discovery alias" },
+    "bridges": ["CLAUDE.md"],
     "evidence": {
       "level": "official",
       "docs": ["https://code.claude.com/docs/en/memory", "https://code.claude.com/docs/en/skills"],
@@ -50,9 +51,10 @@
     "skills": { "mode": "native", "path": ".agents/skills" },
     "bridges": [],
     "evidence": {
-      "level": "official",
+      "level": "official-smoke",
       "docs": ["https://opencode.ai/docs/rules/", "https://opencode.ai/docs/skills/"],
-      "verifiedDate": "2026-09-01"
+      "verifiedVersion": "1.17.7 (catalog)",
+      "verifiedDate": "2026-09-02"
     }
   },
   {
@@ -89,12 +91,13 @@
     "platforms": ["darwin", "linux", "win32"],
     "detection": { "commands": ["zcode"], "projectMarkers": [".zcode"] },
     "rules": { "mode": "native", "path": "AGENTS.md" },
-    "skills": { "mode": "bridge", "path": ".zcode/skills", "mechanism": "link to .agents/skills; manual fallback" },
-    "bridges": [".zcode/skills"],
+    "skills": { "mode": "native", "path": ".agents/skills" },
+    "bridges": [],
     "evidence": {
-      "level": "official",
+      "level": "official-smoke",
       "docs": ["https://zcode.z.ai/en/docs/agents", "https://zcode.z.ai/en/docs/skill"],
-      "verifiedDate": "2026-09-01"
+      "verifiedVersion": "CLI 0.16.5 / App 3.10.2",
+      "verifiedDate": "2026-09-02"
     }
   },
   {
@@ -108,8 +111,8 @@
     "evidence": {
       "level": "source-verified",
       "docs": ["https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/context/agent-instructions/README.md", "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/skills.md"],
-      "verifiedVersion": "0.1.2-alpha.3",
-      "verifiedDate": "2026-09-01"
+      "verifiedVersion": "0.1.2-alpha.4",
+      "verifiedDate": "2026-09-02"
     }
   }
 ]

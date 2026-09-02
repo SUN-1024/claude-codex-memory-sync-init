@@ -33,10 +33,10 @@ try {
   const doctor = run(process.execPath, [cli, "doctor", "--target", project, "--json"]);
   const report = JSON.parse(doctor.stdout);
   if (!report.healthy) throw new Error("installed package doctor did not pass");
-  await unlink(path.join(project, ".zcode", "skills"));
-  const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "zcode", "--json"]);
+  await unlink(path.join(project, ".claude", "skills"));
+  const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "claude", "--json"]);
   if (!JSON.parse(repair.stdout).changed) throw new Error("installed package repair did not report a change");
-  const linkPath = path.join(project, ".zcode", "skills");
+  const linkPath = path.join(project, ".claude", "skills");
   if (await realpath(linkPath) !== await realpath(path.join(project, ".agents", "skills"))) {
     throw new Error("installed package repair did not restore the canonical skills link");
   }

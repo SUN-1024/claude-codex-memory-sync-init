@@ -1,4 +1,4 @@
-import { mkdir, readlink, symlink, unlink } from "node:fs/promises";
+import { mkdir, readlink, realpath, symlink, unlink } from "node:fs/promises";
 import path from "node:path";
 import { pathKind } from "./path-utils.js";
 
@@ -34,7 +34,9 @@ export async function inspectLink(root: string, spec: LinkSpec): Promise<LinkIns
   const rawTarget = await readlink(linkPath);
   const resolved = path.resolve(path.dirname(linkPath), rawTarget);
   const expected = path.resolve(root, spec.target);
-  if (normalize(resolved) !== normalize(expected)) return { kind: "conflict", reason: `${spec.link} points outside the canonical skills path` };
+  const canonicalResolved = await realpath(resolved).catch(() => resolved);
+  const canonicalExpected = await realpath(expected).catch(() => expected);
+  if (normalize(canonicalResolved) !== normalize(canonicalExpected)) return { kind: "conflict", reason: `${spec.link} points outside the canonical skills path` };
   const targetKind = await pathKind(expected);
   return targetKind === "directory" ? { kind: "valid", rawTarget } : { kind: "broken", rawTarget };
 }
