@@ -380,6 +380,19 @@ test("doctor rejects invalid portable Skills", async (t) => {
   assert.ok(report.findings.some((entry: { code: string }) => entry.code === "SKILL_FRONTMATTER_INVALID"));
 });
 
+test("doctor accepts quoted hashes and folded YAML Skill descriptions", async (t) => {
+  const { target } = await initialized(t);
+  const quoted = path.join(target, ".agents", "skills", "quoted-skill");
+  const folded = path.join(target, ".agents", "skills", "folded-skill");
+  await mkdir(quoted);
+  await mkdir(folded);
+  await writeFile(path.join(quoted, "SKILL.md"), "---\nname: quoted-skill\ndescription: \"Build C# projects safely\"\n---\n", "utf8");
+  await writeFile(path.join(folded, "SKILL.md"), "---\nname: folded-skill\ndescription: >-\n  Handles multi-step work\n  across supported Harnesses.\n---\n", "utf8");
+  const diagnosed = runCli(["doctor", "--target", target, "--json"]);
+  assert.equal(diagnosed.status, 0, diagnosed.stderr);
+  assert.equal(JSON.parse(diagnosed.stdout).healthy, true);
+});
+
 test("mid-project vendor Skills are adopted in place without byte changes", async (t) => {
   const { target } = await fixture(t);
   const claudeSkill = path.join(target, ".claude", "skills", "claude-existing", "SKILL.md");

@@ -157,7 +157,10 @@ async function runInitUnlocked(target: string, dryRun: boolean, dependencies: In
   const linkActions: Array<(typeof LINK_SPECS)[number]> = [];
   const adoptingRoots = new Set(adoption.roots.map((root) => root.relativePath));
   for (const spec of LINK_SPECS) {
-    if (adoptingRoots.has(spec.link)) continue;
+    if (adoptingRoots.has(spec.link)) {
+      linkActions.push(spec);
+      continue;
+    }
     const inspection = await inspectLink(target, spec);
     if (inspection.kind === "conflict") findings.push(conflict("SKILLS_LINK_CONFLICT", inspection.reason, spec.link, spec.harness));
     else if (inspection.kind === "missing") linkActions.push(spec);

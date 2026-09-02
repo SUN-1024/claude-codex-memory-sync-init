@@ -9,7 +9,7 @@ import {
 } from "./constants.js";
 import { createLink, inspectLink } from "./links.js";
 import { applyManagedBlock, hasClaudeAgentsImport, hasGeminiAgentsImport, inspectManagedBlock } from "./managed-block.js";
-import { atomicWrite, NonUtf8TextError, pathKind, readText } from "./path-utils.js";
+import { atomicWriteBatch, NonUtf8TextError, pathKind, readText, type TextWrite } from "./path-utils.js";
 import { applySkillAdoption, planSkillAdoption } from "./skill-adoption.js";
 import { inspectSkills } from "./skills-doctor.js";
 import { validateState } from "./state.js";
@@ -38,7 +38,7 @@ function bridgeEnabled(harness: string | undefined, bridgeHarness: string): bool
   return !harness || harness === bridgeHarness;
 }
 
-async function repairManagedFile(
+async function planManagedRepair(
   target: string,
   relativePath: string,
   block: string,
@@ -46,29 +46,48 @@ async function repairManagedFile(
   end: string,
   createWhenMissing: boolean,
   equivalent?: (content: string) => boolean
-): Promise<boolean> {
+): Promise<TextWrite | undefined> {
   const filePath = path.join(target, relativePath);
   const kind = await pathKind(filePath);
-  if (kind !== "missing" && kind !== "file") return false;
+  if (kind !== "missing" && kind !== "file") return undefined;
   const existing = await readText(filePath);
-  if (existing === undefined && !createWhenMissing) return false;
+  if (existing === undefined && !createWhenMissing) return undefined;
   const applied = applyManagedBlock(existing, block, { start, end }, equivalent);
-  if (applied.kind === "malformed" || applied.kind === "unchanged") return false;
-  if (existing !== undefined && inspectManagedBlock(existing, { start, end }).kind === "absent" && !equivalent?.(existing)) return false;
-  await atomicWrite(filePath, applied.content);
-  return true;
+  if (applied.kind === "malformed" || applied.kind === "unchanged") return undefined;
+  if (existing !== undefined && inspectManagedBlock(existing, { start, end }).kind === "absent" && !equivalent?.(existing)) return undefined;
+  return { filePath, content: applied.content };
 }
 
 async function repair(target: string, harness: string | undefined): Promise<string[]> {
   const changed: string[] = [];
   const adoption = await planSkillAdoption(target, harness);
-  if (!adoption.findings.some((entry) => entry.severity === "error") && adoption.roots.length > 0) {
-    await applySkillAdoption(target, adoption);
-    changed.push(...adoption.changes.map((entry) => entry.replace(/^(?:MOVE|LINK|REMOVE) /u, "")));
+  const textPlans: Array<{ relativePath: string; write: TextWrite }> = [];
+  const agents = await planManagedRepair(target, "AGENTS.md", AGENTS_BLOCK, AGENTS_START, AGENTS_END, false);
+  if (agents) textPlans.push({ relativePath: "AGENTS.md", write: agents });
+  if (bridgeEnabled(harness, "claude")) {
+    const claude = await planManagedRepair(target, "CLAUDE.md", CLAUDE_BLOCK, CLAUDE_START, CLAUDE_END, true, hasClaudeAgentsImport);
+    if (claude) textPlans.push({ relativePath: "CLAUDE.md", write: claude });
   }
-  if (await repairManagedFile(target, "AGENTS.md", AGENTS_BLOCK, AGENTS_START, AGENTS_END, false)) changed.push("AGENTS.md");
-  if (bridgeEnabled(harness, "claude") && await repairManagedFile(target, "CLAUDE.md", CLAUDE_BLOCK, CLAUDE_START, CLAUDE_END, true, hasClaudeAgentsImport)) changed.push("CLAUDE.md");
-  if (bridgeEnabled(harness, "gemini") && await repairManagedFile(target, "GEMINI.md", GEMINI_BLOCK, GEMINI_START, GEMINI_END, true, hasGeminiAgentsImport)) changed.push("GEMINI.md");
+  if (bridgeEnabled(harness, "gemini")) {
+    const gemini = await planManagedRepair(target, "GEMINI.md", GEMINI_BLOCK, GEMINI_START, GEMINI_END, true, hasGeminiAgentsImport);
+    if (gemini) textPlans.push({ relativePath: "GEMINI.md", write: gemini });
+  }
+
+  let rollbackAdoption: (() => Promise<void>) | undefined;
+  try {
+    if (!adoption.findings.some((entry) => entry.severity === "error") && adoption.roots.length > 0) {
+      rollbackAdoption = await applySkillAdoption(target, adoption);
+    }
+    await atomicWriteBatch(textPlans.map((plan) => plan.write));
+  } catch (error) {
+    if (rollbackAdoption) await rollbackAdoption().catch(() => undefined);
+    throw error;
+  }
+  for (const root of adoption.roots) {
+    for (const move of root.moves) changed.push(move.destinationRelative);
+    changed.push(root.relativePath);
+  }
+  changed.push(...textPlans.map((plan) => plan.relativePath));
   for (const spec of LINK_SPECS) {
     if (!bridgeEnabled(harness, spec.harness)) continue;
     const inspection = await inspectLink(target, spec);
@@ -228,30 +247,20 @@ async function inspectProject(target: string, harness: string | undefined): Prom
     if (!bridgeEnabled(harness, spec.harness)) continue;
     if (adoptingRoots.has(spec.link)) continue;
     const inspection = await inspectLink(target, spec);
-    if (inspection.kind === "missing") findings.push(item("SKILLS_LINK_MANUAL_FALLBACK", "warning", `${spec.link} is missing; ${spec.harness} must read .agents/skills manually.`, true, spec.link, spec.harness));
+    if (inspection.kind === "missing") findings.push(item("SKILLS_LINK_MANUAL_FALLBACK", "warning", `${spec.link} is missing; ${spec.harness} cannot catalog the canonical project Skills until repair recreates the compatibility link.`, true, spec.link, spec.harness));
     else if (inspection.kind === "conflict") findings.push(item("SKILLS_LINK_CONFLICT", "error", inspection.reason, false, spec.link, spec.harness));
     else if (inspection.kind === "broken") findings.push(item("SKILLS_LINK_BROKEN", "error", `${spec.link} points to the canonical path, but .agents/skills is unavailable.`, false, spec.link, spec.harness));
+    else findings.push(item("CROSS_HARNESS_SKILL_ALIAS", "info", `${spec.link} aliases .agents/skills for ${spec.harness}. It is one canonical Skill tree, not a converted copy.`, false, spec.link, spec.harness));
   }
 
   for (const spec of DEPRECATED_LINK_SPECS) {
     if (!bridgeEnabled(harness, spec.harness)) continue;
     const inspection = await inspectLink(target, spec);
     if (inspection.kind === "valid" || inspection.kind === "broken") {
-      findings.push(item("DEPRECATED_SKILLS_LINK", "warning", `${spec.link} is an obsolete RepoMemo bridge. Current ${spec.harness} reads .agents/skills natively; repair will remove the duplicate discovery path.`, true, spec.link, spec.harness));
+      findings.push(item("DEPRECATED_SKILLS_LINK", "warning", `${spec.link} is an obsolete RepoMemo alias. The current contract uses only .agents/skills to avoid duplicate discovery; repair will remove this exact alias without touching independent content.`, true, spec.link, spec.harness));
     } else if (inspection.kind === "conflict" && !adoptingRoots.has(spec.link)) {
       findings.push(item("HARNESS_SKILLS_PATH_PRESENT", "warning", `${spec.link} contains independent Harness Skills in addition to .agents/skills; merge them to avoid duplicate names.`, false, spec.link, spec.harness));
     }
-  }
-
-  if (!harness || harness === "claude") {
-    findings.push(item(
-      "CLAUDE_SKILLS_MANUAL",
-      "info",
-      "Claude Code receives the canonical Skill instruction through CLAUDE.md and AGENTS.md, but does not natively catalog .agents/skills. RepoMemo intentionally avoids a .claude/skills alias because other supported Harnesses scan both paths and would report duplicates.",
-      false,
-      ".agents/skills",
-      "claude"
-    ));
   }
 
   if ((!harness || harness === "opencode") && !await hasGitContext(target)) {
@@ -280,7 +289,7 @@ export async function runDoctor(target: string, options: DoctorOptions): Promise
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof NonUtf8TextError ? "NON_UTF8_TEXT" : "FILESYSTEM_ERROR";
-    findings.push(item(code, "error", `${message}. No unchecked repair was attempted; correct access or encoding and rerun doctor.`, false));
+    findings.push(item(code, "error", `${message}. The operation stopped; correct access or encoding, inspect the project with doctor, and retry.`, false));
   }
   for (const changedPath of changedPaths) findings.unshift(item("REPAIRED", "info", `Repaired ${changedPath}.`, false, changedPath));
   return {

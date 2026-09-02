@@ -24,6 +24,11 @@ function validateAdapter(value: unknown): HarnessAdapter {
     if (endpoint.path !== undefined && (typeof endpoint.path !== "string" || !isProjectRelative(endpoint.path))) throw new Error(`invalid harness endpoint path: ${item.id}`);
     if (endpoint.mechanism !== undefined && typeof endpoint.mechanism !== "string") throw new Error(`invalid harness mechanism: ${item.id}`);
   }
+  for (const endpoint of [rules, skills]) {
+    if (endpoint.mode === "bridge" && (typeof endpoint.path !== "string" || !item.bridges.includes(endpoint.path))) {
+      throw new Error(`bridge endpoint must be listed in harness bridges: ${item.id}`);
+    }
+  }
   if (
     !evidence
     || !EVIDENCE.has(evidence.level as EvidenceLevel)

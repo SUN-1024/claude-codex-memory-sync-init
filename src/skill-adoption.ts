@@ -1,6 +1,7 @@
 import { mkdir, readdir, rename, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { pathKind } from "./path-utils.js";
+import { inspectSkillRoot } from "./skills-doctor.js";
 import type { Finding } from "./types.js";
 
 interface VendorRoot {
@@ -60,6 +61,12 @@ export async function planSkillAdoption(target: string, harness?: string): Promi
     if (harness && vendor.harness !== harness) continue;
     const absolutePath = path.join(target, vendor.relativePath);
     if (await pathKind(absolutePath) !== "directory") continue;
+    const portabilityFindings = (await inspectSkillRoot(absolutePath, vendor.relativePath))
+      .map((entry) => ({ ...entry, harness: vendor.harness }));
+    if (portabilityFindings.some((entry) => entry.severity === "error")) {
+      findings.push(...portabilityFindings);
+      continue;
+    }
     const names = await readdir(absolutePath);
     const moves: SkillMove[] = [];
     for (const name of names) {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getAdapter, getAdapters } from "../src/adapters.js";
+import { DEPRECATED_LINK_SPECS, LINK_SPECS } from "../src/constants.js";
 
 test("adapter registry exposes the fixed v2 launch set", () => {
   const adapters = getAdapters();
@@ -17,6 +18,8 @@ test("adapter registry exposes the fixed v2 launch set", () => {
   assert.deepEqual(getAdapter("codex")?.skills, { mode: "native", path: ".agents/skills" });
   assert.deepEqual(getAdapter("opencode")?.skills, { mode: "native", path: ".agents/skills" });
   assert.deepEqual(getAdapter("opencode")?.bridges, []);
+  assert.deepEqual(LINK_SPECS, [{ harness: "claude", link: ".claude/skills", target: ".agents/skills" }]);
+  assert.deepEqual(DEPRECATED_LINK_SPECS, [{ harness: "zcode", link: ".zcode/skills", target: ".agents/skills" }]);
 });
 
 test("adapter registry callers receive defensive clones", () => {

@@ -1,4 +1,5 @@
 import packageJson from "../package.json" with { type: "json" };
+import { getAdapters } from "./adapters.js";
 import type { LinkSpec } from "./links.js";
 
 export const VERSION = packageJson.version;
@@ -36,9 +37,10 @@ its own folder with a \`SKILL.md\` file. Harness-specific paths may point here,
 but skill content must not be copied into those paths.
 `;
 
-export const LINK_SPECS: readonly LinkSpec[] = [];
+export const LINK_SPECS: readonly LinkSpec[] = getAdapters()
+  .filter((adapter) => adapter.skills.mode === "bridge" && adapter.skills.path)
+  .map((adapter) => ({ harness: adapter.id, link: adapter.skills.path ?? "", target: ".agents/skills" }));
 
 export const DEPRECATED_LINK_SPECS: readonly LinkSpec[] = [
-  { harness: "claude", link: ".claude/skills", target: ".agents/skills" },
   { harness: "zcode", link: ".zcode/skills", target: ".agents/skills" }
 ];
