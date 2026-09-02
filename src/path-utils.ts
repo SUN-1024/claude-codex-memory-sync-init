@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, open, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -54,14 +54,17 @@ interface LockOwner {
   createdAt: number;
 }
 
-function sameLockSnapshot(before: Awaited<ReturnType<typeof stat>>, after: Awaited<ReturnType<typeof stat>>): boolean {
+function sameLockSnapshot(
+  before: Awaited<ReturnType<typeof stat>>,
+  after: Awaited<ReturnType<typeof stat>>,
+  beforeContent: string,
+  afterContent: string
+): boolean {
   if (process.platform !== "win32") return before.dev === after.dev && before.ino === after.ino;
-  // Node's numeric dev/ino pair is not stable across an NTFS rename on every
-  // supported Windows runner. The file timestamps and size remain stable and
-  // still distinguish a replacement created between inspection and rename.
-  return before.size === after.size
-    && before.mtimeMs === after.mtimeMs
-    && before.birthtimeMs === after.birthtimeMs;
+  // Node's numeric dev/ino pair and timestamps are not stable across an NTFS
+  // rename on every supported Windows runner. RepoMemo publishes only complete
+  // owner records with unique tokens, so exact bytes identify the moved lock.
+  return beforeContent === afterContent;
 }
 
 function parseLockOwner(content: string): LockOwner | undefined {
@@ -80,19 +83,25 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
   const token = randomUUID();
   const owner: LockOwner = { pid: process.pid, token, createdAt: Date.now() };
   const deadline = Date.now() + 15_000;
+  const candidatePath = `${lockPath}.candidate-${token}`;
 
   while (true) {
     try {
-      const handle = await open(lockPath, "wx", 0o600);
+      // Publish a fully-written owner record atomically. A hard link is an
+      // exclusive create when lockPath is absent and never exposes an empty or
+      // partially-written lock to a concurrent stale-lock cleaner.
+      await writeFile(candidatePath, `${JSON.stringify(owner)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
       try {
-        await handle.writeFile(`${JSON.stringify(owner)}\n`, "utf8");
+        await link(candidatePath, lockPath);
       } finally {
-        await handle.close();
+        await unlink(candidatePath).catch(() => undefined);
       }
       break;
     } catch (error) {
+      await unlink(candidatePath).catch(() => undefined);
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const existing = parseLockOwner(await readFile(lockPath, "utf8").catch(() => ""));
+      const existingContent = await readFile(lockPath, "utf8").catch(() => "");
+      const existing = parseLockOwner(existingContent);
       const lockDetails = await stat(lockPath).catch(() => undefined);
       const age = lockDetails ? Date.now() - lockDetails.mtimeMs : 0;
       const stale = existing
@@ -108,7 +117,8 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
           throw renameError;
         }
         const moved = await stat(quarantine).catch(() => undefined);
-        if (!moved || !sameLockSnapshot(lockDetails, moved)) {
+        const movedContent = await readFile(quarantine, "utf8").catch(() => "");
+        if (!moved || !sameLockSnapshot(lockDetails, moved, existingContent, movedContent)) {
           if (await pathKind(lockPath) === "missing") await rename(quarantine, lockPath).catch(() => undefined);
           throw new Error(`RepoMemo lock changed while stale ownership was being reclaimed for ${target}`);
         }

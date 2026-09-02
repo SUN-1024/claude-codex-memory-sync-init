@@ -164,6 +164,10 @@ dependency, and fail-closed contract.
   but exposed that Node's numeric NTFS `dev`/`ino` identity is not stable across
   every Windows rename. Stale-lock quarantine now uses stable size/timestamp
   identity on Windows while retaining device/inode identity on POSIX.
+- Follow-up run `33605677910` showed that NTFS rename timestamps are also not a
+  portable identity boundary. The final lock protocol writes a complete unique
+  candidate first and atomically publishes it with a same-volume hard link;
+  Windows quarantine validation compares the unique owner bytes.
 
 ## Touched Paths
 
