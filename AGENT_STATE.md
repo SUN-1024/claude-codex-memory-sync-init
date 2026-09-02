@@ -112,6 +112,9 @@ dependency, and fail-closed contract.
 - Corrected direct text-mode `repair` summaries to identify the actual command;
   2.0.3 supersedes the short-lived GitHub-only 2.0.2 release before npm or
   Homebrew publication.
+- Closed the final lock-artifact cleanup gaps: dead pre-publication candidates
+  and choosing files are reclaimed, and setup failure removes any contender that
+  was already published by that same unique token.
 
 ## Decisions
 

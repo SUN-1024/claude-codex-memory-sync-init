@@ -81,3 +81,22 @@ test("concurrent stale-lock cleaners still serialize writers", async (t) => {
   await Promise.all([writer(), writer()]);
   assert.equal(maximumActive, 1);
 });
+
+test("lock election removes dead candidate and choosing artifacts", async (t) => {
+  const target = await mkdtemp(path.join(os.tmpdir(), "repomemo-lock-artifacts-target-"));
+  const digest = createHash("sha256").update(target).digest("hex").slice(0, 24);
+  const dead = `${JSON.stringify({ pid: 999_999_999, token: "dead-artifact", createdAt: Date.now() - 10_000 })}\n`;
+  const candidate = path.join(os.tmpdir(), `repomemo-init-${digest}.contender-dead-artifact.candidate`);
+  const choosing = path.join(os.tmpdir(), `repomemo-init-${digest}.choosing-dead-artifact`);
+  t.after(async () => {
+    await rm(target, { recursive: true, force: true });
+    await rm(candidate, { force: true });
+    await rm(choosing, { force: true });
+  });
+  await writeFile(candidate, dead, { mode: 0o600 });
+  await writeFile(choosing, dead, { mode: 0o600 });
+
+  await withProjectInitLock(target, async () => undefined);
+  await assert.rejects(readFile(candidate, "utf8"));
+  await assert.rejects(readFile(choosing, "utf8"));
+});

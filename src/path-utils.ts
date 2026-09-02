@@ -93,6 +93,7 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
   } catch (error) {
     await unlink(candidatePath).catch(() => undefined);
     await unlink(choosingPath).catch(() => undefined);
+    await unlink(contenderPath).catch(() => undefined);
     throw error;
   }
 
@@ -102,7 +103,18 @@ export async function withProjectInitLock<T>(target: string, action: () => Promi
       let anotherChoosing = false;
       for (const name of await readdir(temporaryRoot)) {
         const isChoosing = name.startsWith(choosingPrefix);
-        const isContender = name.startsWith(contenderPrefix) && !name.endsWith(".candidate");
+        const isCandidate = name.startsWith(contenderPrefix) && name.endsWith(".candidate");
+        const isContender = name.startsWith(contenderPrefix) && !isCandidate;
+        if (isCandidate) {
+          const candidate = path.join(temporaryRoot, name);
+          const content = await readFile(candidate, "utf8").catch(() => "");
+          const parsed = parseLockOwner(content);
+          const details = await stat(candidate).catch(() => undefined);
+          if (details && (parsed ? !processIsAlive(parsed.pid) : Date.now() - details.mtimeMs > 5_000)) {
+            await unlink(candidate).catch(() => undefined);
+          }
+          continue;
+        }
         if (!isChoosing && !isContender) continue;
         const contender = path.join(temporaryRoot, name);
         const content = await readFile(contender, "utf8").catch(() => "");
