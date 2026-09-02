@@ -36,7 +36,9 @@ try {
   await unlink(path.join(project, ".zcode", "skills"));
   const repair = run(process.execPath, [cli, "repair", "--target", project, "--harness", "zcode", "--json"]);
   if (!JSON.parse(repair.stdout).changed) throw new Error("installed package repair did not report a change");
-  if (await readlink(path.join(project, ".zcode", "skills")) === "") throw new Error("installed package repair did not restore the skills link");
+  const linkPath = path.join(project, ".zcode", "skills");
+  const resolvedLink = path.resolve(path.dirname(linkPath), await readlink(linkPath));
+  if (resolvedLink !== path.join(project, ".agents", "skills")) throw new Error("installed package repair did not restore the canonical skills link");
   const agents = await readFile(path.join(project, "AGENTS.md"), "utf8");
   if (!agents.includes("repomemo:start")) throw new Error("installed package did not initialize AGENTS.md");
   process.stdout.write(`package smoke passed: ${tarball}\n`);

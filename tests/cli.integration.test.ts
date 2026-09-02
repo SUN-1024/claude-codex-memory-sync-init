@@ -307,7 +307,11 @@ test("legacy doctor --repair remains a backward-compatible alias", async (t) => 
   const legacy = runCli(["doctor", "--repair", "--target", target, "--harness", "zcode", "--json"]);
   assert.equal(legacy.status, 0, legacy.stderr);
   assert.equal(JSON.parse(legacy.stdout).changed, true);
-  assert.equal(await readlink(path.join(target, ".zcode", "skills")), "../.agents/skills");
+  const linkPath = path.join(target, ".zcode", "skills");
+  assert.equal(
+    path.resolve(path.dirname(linkPath), await readlink(linkPath)),
+    path.join(target, ".agents", "skills")
+  );
 });
 
 test("real vendor directories and linked contract parents fail closed", async (t) => {
